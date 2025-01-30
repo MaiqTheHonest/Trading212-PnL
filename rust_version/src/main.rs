@@ -25,8 +25,8 @@ async fn call_api() -> Result<(), Box<dyn Error>> {
 
     let params = HashMap::from([
         ("cursor", ""),
-        ("ticker", "SQM_US_EQ"),
-        ("limit", "10")]);
+        ("ticker", ""),
+        ("limit", "50")]);
 
 
     let client = reqwest::Client::new();
@@ -42,13 +42,16 @@ async fn call_api() -> Result<(), Box<dyn Error>> {
         
 
         // shadowing to convert to vector
-
         let portfolio_data = portfolio_data["items"].as_array().unwrap();    // later add proper err management with match
 
 
         let next_cursor = extract_unix(&portfolio_data);    // later add proper err management with match
-        println!("{:?}", next_cursor)
-
+        println!("{:?}", portfolio_data);
+        println!("{:?}", next_cursor);
+        
+        if let Some(stuff) = next_cursor {
+            println!("{:?}", stuff)
+        }
 
         
 
@@ -61,15 +64,16 @@ async fn call_api() -> Result<(), Box<dyn Error>> {
 }
 
 
-fn extract_unix(orders: &Vec<Value>) -> Option<i64> {
+fn extract_unix(orders: &Vec<Value>) -> Option<String> {
     let orders = orders
     .last()?
     .get("dateCreated")?
     .as_str()?;
 
     let orders = DateTime::parse_from_rfc3339(orders)
-    .ok()
-    .map(|kek| kek.timestamp_millis());
+    .ok()?
+    .timestamp_millis()
+    .to_string();
 
-    orders
+    Some(orders)
 }
