@@ -3,6 +3,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use serde_json::Value;
 use std::error::Error;
 use std::fs;
+use chrono::DateTime;
 
 
 #[tokio::main]
@@ -41,9 +42,15 @@ async fn call_api() -> Result<(), Box<dyn Error>> {
         
 
         // shadowing to convert to vector
-        let portfolio_data = &portfolio_data["items"].as_array().unwrap();
 
-        println!("{:?}", &portfolio_data.last());
+        let portfolio_data = portfolio_data["items"].as_array().unwrap();    // later add proper err management with match
+
+
+        let next_cursor = extract_unix(&portfolio_data);    // later add proper err management with match
+        println!("{:?}", next_cursor)
+
+
+        
 
         // println!("last iso {:?}", &portfolio_data["items"])
     } else {
@@ -53,3 +60,16 @@ async fn call_api() -> Result<(), Box<dyn Error>> {
 
 }
 
+
+fn extract_unix(orders: &Vec<Value>) -> Option<i64> {
+    let orders = orders
+    .last()?
+    .get("dateCreated")?
+    .as_str()?;
+
+    let orders = DateTime::parse_from_rfc3339(orders)
+    .ok()
+    .map(|kek| kek.timestamp_millis());
+
+    orders
+}

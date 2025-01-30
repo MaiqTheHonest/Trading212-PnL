@@ -43,6 +43,7 @@ while True:
         order_counts += len(raw_orders)
         current_cursor = str(nextPagePath)
         print(raw_orders)
+        print(current_cursor)
         
         
 
