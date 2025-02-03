@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-
+// LLALALALALALALLAA
 async fn call_api() -> Result<(), Box<dyn Error>> {
 
     let api_key = fs::read_to_string("api_key.txt")
