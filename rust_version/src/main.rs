@@ -4,16 +4,41 @@ use serde_json::Value;
 use std::error::Error;
 use std::fs;
 use chrono::DateTime;
+use serde::Deserialize;
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    call_api().await?;
+
+    let api_response = call_api().await;
+    match api_response {
+        Ok(v) => process_items(v),
+        Err(e) => eprintln!("{}", e),
+    }
+
     Ok(())
 }
 
+
+
+
+// defining structs for json output to be deserialized into (within call_api)
+#[derive(Debug, Deserialize)]
+struct Items {
+    items: Vec<Order>,
+
+}
+
+#[derive(Debug, Deserialize)]
+struct Order {
+    ticker: String,
+    dateCreated: String,
+
+}
+
+
 // LLALALALALALALLAA
-async fn call_api() -> Result<(), Box<dyn Error>> {
+async fn call_api() -> Result<Items, Box<dyn Error>> {
 
     let api_key = fs::read_to_string("api_key.txt")
     .expect("could not find api_key.txt");
@@ -38,42 +63,52 @@ async fn call_api() -> Result<(), Box<dyn Error>> {
         .await?;
 
     if response.status().is_success() {
-        let portfolio_data: Value = response.json().await?;    //Value is a serde_json struct to store response
+        let catcher: Items = response.json().await?;    //Value is a serde_json struct to store response
+        Ok(catcher)
         
-
         // shadowing to convert to vector
-        let portfolio_data = portfolio_data["items"].as_array().unwrap();    // later add proper err management with match
+        // let portfolio_data = portfolio_data["items"].as_array().unwrap();    // later add proper err management with match
+        // let tickers = &portfolio_data.get("tickers");
+        // println!("{:?}", &portfolio_data)
 
-
-        let next_cursor = extract_unix(&portfolio_data);    // later add proper err management with match
-        println!("{:?}", portfolio_data);
-        println!("{:?}", next_cursor);
+        // let next_cursor = extract_unix(&portfolio_data);    // later add proper err management with match
+        // println!("{:?}", portfolio_data);
+        // println!("{:?}", next_cursor);
         
-        if let Some(stuff) = next_cursor {
-            println!("{:?}", stuff)
-        }
+        // if let Some(stuff) = next_cursor {
+        //     println!("{:?}", stuff)
+        // }
 
         
 
         // println!("last iso {:?}", &portfolio_data["items"])
     } else {
-        eprintln!("failed to fetch or authorize: {}", response.status());
+        // eprintln!("failed to fetch or authorize: {}", response.status());
+        Err(format!("API call failed: {}", response.status()).into())
     }
-    Ok(())
+    
 
 }
 
+fn process_items(orders: Items) {
 
-fn extract_unix(orders: &Vec<Value>) -> Option<String> {
-    let orders = orders
-    .last()?
-    .get("dateCreated")?
-    .as_str()?;
+    let mut ay = orders.items.last();
 
-    let orders = DateTime::parse_from_rfc3339(orders)
-    .ok()?
-    .timestamp_millis()
-    .to_string();
-
-    Some(orders)
+    println!("{:?}", &orders);
+    println!("{:?}", &ay)
 }
+
+
+// fn extract_unix(orders: &Vec<Value>) -> Option<String> {
+//     let orders = orders
+//     .last()?
+//     .get("dateCreated")?
+//     .as_str()?;
+
+//     let orders = DateTime::parse_from_rfc3339(orders)
+//     .ok()?
+//     .timestamp_millis()
+//     .to_string();
+
+//     Some(orders)
+// }
