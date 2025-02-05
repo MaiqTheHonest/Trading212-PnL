@@ -17,9 +17,13 @@ def call_api(page: str, cursor: str = ""):
     }
 
     response = requests.get(page, headers=headers, params=query)
-
+    
     try:
-        results = response.json()["items"]
+
+        results = response.json()
+        print(results)
+        results = results["items"]
+        
         #iso_timestamp = [stuff["fillPrice"] for stuff in results["items"]]
         iso_timestamp = results[-1]["dateCreated"]
         nPP = int(datetime.strptime(iso_timestamp, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp()) * 1000    # for milisecond-based timestamp that t212 needs
@@ -42,7 +46,7 @@ while True:
     if raw_orders is not None:
         order_counts += len(raw_orders)
         current_cursor = str(nextPagePath)
-        print(raw_orders)
+        # print(raw_orders)
         print(current_cursor)
         
         

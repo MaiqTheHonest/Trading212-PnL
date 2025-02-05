@@ -10,11 +10,20 @@ use serde::Deserialize;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
 
-    let api_response = call_api().await;
-    match api_response {
-        Ok(v) => process_items(v),
-        Err(e) => eprintln!("{}", e),
-    }
+    
+
+    let mut cursor = String::from("");
+    while cursor != String::from("complete") {
+        let api_response = call_api(&cursor).await;
+        cursor = match api_response {
+            Ok(v) => process_items(v),
+            Err(e) => {
+                eprintln!("{}", e);
+                String::from("couldnt call API")
+            }
+        };
+        println!("{}", cursor)
+    };
 
     Ok(())
 }
@@ -38,7 +47,7 @@ struct Order {
 
 
 // LLALALALALALALLAA
-async fn call_api() -> Result<Items, Box<dyn Error>> {
+async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
 
     let api_key = fs::read_to_string("api_key.txt")
     .expect("could not find api_key.txt");
@@ -49,7 +58,7 @@ async fn call_api() -> Result<Items, Box<dyn Error>> {
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&api_key)?);
 
     let params = HashMap::from([
-        ("cursor", ""),
+        ("cursor", current_cursor.as_str()),
         ("ticker", ""),
         ("limit", "50")]);
 
@@ -90,25 +99,30 @@ async fn call_api() -> Result<Items, Box<dyn Error>> {
 
 }
 
-fn process_items(orders: Items) {
+fn process_items(orders: Items) -> String {
 
-    let mut ay = orders.items.last();
+    let toimestamp = extract_unix(&orders.items);
+    let blarg = match toimestamp {
+        Some(v) => v,
+        None => String::from("complete")
+    };
 
     println!("{:?}", &orders);
-    println!("{:?}", &ay)
+
+    blarg
 }
 
 
-// fn extract_unix(orders: &Vec<Value>) -> Option<String> {
-//     let orders = orders
-//     .last()?
-//     .get("dateCreated")?
-//     .as_str()?;
+fn extract_unix(timestamp: &Vec<Order>) -> Option<String> {
+    let timestamp = timestamp
+    .last()?
+    .dateCreated
+    .as_str();
 
-//     let orders = DateTime::parse_from_rfc3339(orders)
-//     .ok()?
-//     .timestamp_millis()
-//     .to_string();
+    let timestamp = DateTime::parse_from_rfc3339(timestamp)
+    .ok()?
+    .timestamp_millis()
+    .to_string();
 
-//     Some(orders)
-// }
+    Some(timestamp)
+}
