@@ -49,8 +49,7 @@ while True:
         # print(raw_orders)
         print(current_cursor)
         
-        
-
+    
     else:
         print(f"--- found {order_counts} orders, including cancelled")
         break
