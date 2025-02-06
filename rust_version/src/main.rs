@@ -10,24 +10,23 @@ use serde::Deserialize;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
 
-    
+    let mut cursor = String::from("");    // start with empty cursor
 
-    let mut cursor = String::from("");
-    while cursor != String::from("complete") {
+    while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
+
         let api_response = call_api(&cursor).await;
+
         cursor = match api_response {
-            Ok(v) => process_items(v),
+            Ok(v) => process_items(v),            //         <-|
             Err(e) => {
                 eprintln!("{}", e);
-                String::from("couldnt call API")
+                String::from("response has no cursor")
             }
         };
-        println!("{}", cursor)
     };
 
     Ok(())
 }
-
 
 
 
@@ -46,7 +45,8 @@ struct Order {
 }
 
 
-// LLALALALALALALLAA
+
+// THIS IS DEVELOP BRANCH
 async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
 
     let api_key = fs::read_to_string("api_key.txt")
@@ -62,7 +62,6 @@ async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
         ("ticker", ""),
         ("limit", "50")]);
 
-
     let client = reqwest::Client::new();
     let response = client
         .get(api_url)
@@ -72,39 +71,20 @@ async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
         .await?;
 
     if response.status().is_success() {
-        let catcher: Items = response.json().await?;    //Value is a serde_json struct to store response
+        let catcher: Items = response.json().await?;    // Items is the outer struct to which we feed serde_json output
         Ok(catcher)
-        
-        // shadowing to convert to vector
-        // let portfolio_data = portfolio_data["items"].as_array().unwrap();    // later add proper err management with match
-        // let tickers = &portfolio_data.get("tickers");
-        // println!("{:?}", &portfolio_data)
 
-        // let next_cursor = extract_unix(&portfolio_data);    // later add proper err management with match
-        // println!("{:?}", portfolio_data);
-        // println!("{:?}", next_cursor);
-        
-        // if let Some(stuff) = next_cursor {
-        //     println!("{:?}", stuff)
-        // }
-
-        
-
-        // println!("last iso {:?}", &portfolio_data["items"])
     } else {
-        // eprintln!("failed to fetch or authorize: {}", response.status());
         Err(format!("API call failed: {}", response.status()).into())
     }
-    
-
 }
 
 fn process_items(orders: Items) -> String {
 
-    let toimestamp = extract_unix(&orders.items);
-    let blarg = match toimestamp {
-        Some(v) => v,
-        None => String::from("complete")
+    let timestamp = extract_unix(&orders.items);
+    let blarg = match timestamp {
+        Some(v) => v,                       // if it worked, return unxi timestamp as cursor (blarg)
+        None => String::from("complete")    // it it didn't, return "complete" as cursor (blarg)
     };
 
     println!("{:?}", &orders);
@@ -114,6 +94,7 @@ fn process_items(orders: Items) -> String {
 
 
 fn extract_unix(timestamp: &Vec<Order>) -> Option<String> {
+    // shadowing
     let timestamp = timestamp
     .last()?
     .dateCreated
