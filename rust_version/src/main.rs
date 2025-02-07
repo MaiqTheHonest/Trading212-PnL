@@ -6,14 +6,15 @@ use std::fs;
 use chrono::DateTime;
 use serde::{Deserialize, Deserializer, de};
 use std::{thread, time};
+use ndarray::{Array1, arr1};
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
 
-    let mut data = Vec::<Order>::new();
+    let mut data = Vec::<Orders>::new();
     let mut cursor = String::from("");    // start with empty cursor
-    let mut orders = Vec::new();          // and empty vector <T> (holds any type but mine is Vec<Order>)
+    let mut orders = Vec::new();          // and empty vector <T> (holds any type but mine is Vec<Orders>)
 
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
@@ -31,9 +32,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         thread::sleep(time::Duration::from_millis(10))
     };
 
+    
+    
+
+    for item in &mut data {
+        item.dateCreated = item.dateCreated.chars().take(10).collect();    // convert date to daily
+    }
+
+
+
     println!("{:?}", data);
     println!("fetched a total of {} orders", data.len());
-    // println!("{:.3}", data[0].filledQuantity);
+    // println!("{:?}", data.to_ndarray());
     Ok(())
 }
 
@@ -42,18 +52,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
 // defining structs for json output to be deserialized into (within call_api)
 #[derive(Debug, Deserialize)]
 struct Items {
-    items: Vec<Order>,
+    items: Vec<Orders>,
 
 }
 
 #[derive(Debug, Deserialize)]
-struct Order {
+struct Orders {
+    id: u64,
     ticker: String,
     dateCreated: String,
 
-    #[serde(deserialize_with = "deserialize_null_fields")]    // custom deserialize routine to fill null.
+    #[serde(deserialize_with = "deserialize_null_fields")]    // custom deserialize routine to fill occasional nulls.
     filledQuantity: f32,                                      // happens because .json has implementation for null,
-                                                              // but rust doesn't (and doesn't even treat it as a missing field)    <-\\
+                                                              
+    #[serde(deserialize_with = "deserialize_null_fields")]    // but rust doesn't (and doesn't even treat it as a missing field)    <-\\
+    fillPrice: f32,
+
 
     status: String
 
@@ -62,6 +76,17 @@ struct Order {
 fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f32, D::Error> where D: Deserializer<'de> {    // the routine itself  <-||
     Option::<f32>::deserialize(deserializer).map(|opt| opt.unwrap_or(0.0))
 }
+
+
+
+// impl Orders {
+    
+//     fn to_ndarray(&self) -> Array1::<f32> {
+        
+//         arr1(&[self.filledQuantity])
+//     }
+// }
+
 
 
 
@@ -100,7 +125,7 @@ async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
 
 
 
-fn process_items(orders: Items) -> (String, Vec<Order>) {
+fn process_items(orders: Items) -> (String, Vec<Orders>) {
 
     let timestamp = extract_unix(&orders.items);
     let blarg = match timestamp {
@@ -113,7 +138,7 @@ fn process_items(orders: Items) -> (String, Vec<Order>) {
 
 
 
-fn extract_unix(timestamp: &Vec<Order>) -> Option<String> {
+fn extract_unix(timestamp: &Vec<Orders>) -> Option<String> {
     // shadowing
     let timestamp = timestamp
     .last()?
@@ -127,3 +152,7 @@ fn extract_unix(timestamp: &Vec<Order>) -> Option<String> {
 
     Some(timestamp)
 }
+
+
+
+// fn extract_DDMMYYYY(timestamp: &Vec<Orders>) -> String {}
