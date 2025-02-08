@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![allow(dead_code)]
 use std::collections::HashMap;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use std::error::Error;
