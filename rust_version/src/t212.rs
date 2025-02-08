@@ -1,12 +1,12 @@
+#![allow(non_snake_case)]
 use std::collections::HashMap;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use serde_json::Value;
 use std::error::Error;
 use std::fs;
 use chrono::DateTime;
-use serde::{Deserialize, Deserializer, de};
+use serde::{Deserialize, Deserializer};
 use std::{thread, time};
-use ndarray::{Array1, arr1};
+
 
 
 #[tokio::main]
