@@ -62,18 +62,18 @@ pub struct Order {                                            // both the struct
     pub dateCreated: String,
 
     #[serde(deserialize_with = "deserialize_null_fields")]    // custom deserialize routine to fill occasional nulls.
-    pub filledQuantity: f32,                                  // happens because .json has implementation for null,
+    pub filledQuantity: f64,                                  // happens because .json has implementation for null,
                                                               
     #[serde(deserialize_with = "deserialize_null_fields")]    // but rust doesn't (and doesn't even treat it as a missing field)    <-\\
-    pub fillPrice: f32,
+    pub fillPrice: f64,
 
 
     pub status: String
 
 }
 
-fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f32, D::Error> where D: Deserializer<'de> {    // the routine itself  <-||
-    Option::<f32>::deserialize(deserializer).map(|opt| opt.unwrap_or(0.0))
+fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> where D: Deserializer<'de> {    // the routine itself  <-||
+    Option::<f64>::deserialize(deserializer).map(|opt| opt.unwrap_or(0.0))
 }
 
 
@@ -92,7 +92,7 @@ async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
     let params = HashMap::from([
         ("cursor", current_cursor.as_str()),
         ("ticker", ""),
-        ("limit", "50")]);
+        ("limit", "40")]);
 
     let client = reqwest::Client::new();
     let response = client
