@@ -1,7 +1,7 @@
 mod t212;
 use chrono::{NaiveDate, Duration};
 // use serde::de::Error;
-use std::{collections::{HashMap, hash_map::Entry}, error::Error};
+use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
 use std::collections::HashSet;
 use crate::t212::Order;
 
@@ -21,24 +21,45 @@ fn main() {
     // so we just remove them. this introduces miniscule price incorrection
     remove_duplicates(&mut data);    
 
-    println!("{:?}", data);
+    // println!("{:?}", data);
 
     let time_range = get_time_range(&data).expect("Failed to get time range: ");
-    // println!("{:?}", time_range);
+    let mut portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)> = time_range.clone()
+    .into_iter()
+    .map(|d| (d, HashMap::new()))    // create empty portfolio hashmap for every date
+    .collect();
 
     let mut portfolio_t: HashMap<String, (f64, f64)> = HashMap::new();
 
-    for order in data {
 
+    for order in &mut data {
+        // println!("{:?}", (&order.ticker, order.dateCreated.as_str()));
+        // dealing with edge cases: l_EQ means LSE transaction, which is quoted in pennies
+        // so we multiply by 100. Also where value transaction, we translate into quantities
+        if order.filledQuantity == 0.0 && order.ticker.contains("l_EQ") {
+            order.filledQuantity = (order.filledValue * 100.0) / order.fillPrice    
+        } else {
+            // pass
+        };
+
+        // filtering out cancelled or rejected orders
         if order.status == String::from("FILLED") {
             process_order(&mut portfolio_t, &order);
         } else {
             // pass
-        }
-            
+        };
+
+        let matcher = NaiveDate::from_str(&order.dateCreated).unwrap();
+
+
+        let index = time_range.iter().position(|&r| r == matcher).unwrap();
+        portfolio_history[index] = (matcher, portfolio_t.clone());
+        
     }
 
-    println!("{:?}", portfolio_t)
+    // let blarg = NaiveDate::from_str("2025-02-03").unwrap();
+    println!("{:?}", portfolio_history);
+    
 }
 
 
@@ -64,7 +85,7 @@ fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
 
     let mut time_range = Vec::new();
 
-    while start_date < end_date {
+    while start_date <= end_date {
         time_range.push(start_date);
         start_date += Duration::days(1);
     }
@@ -85,7 +106,6 @@ fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
 fn process_order(portfolio_t: &mut HashMap<String, (f64, f64)>, order: &Order) {
 
     // println!("{}", order.dateCreated);
-
     let q_1 = order.filledQuantity;
     let p_1 = order.fillPrice;
 

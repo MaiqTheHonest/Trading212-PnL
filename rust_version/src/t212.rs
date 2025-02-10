@@ -67,6 +67,8 @@ pub struct Order {                                            // both the struct
     #[serde(deserialize_with = "deserialize_null_fields")]    // but rust doesn't (and doesn't even treat it as a missing field)    <-\\
     pub fillPrice: f64,
 
+    #[serde(deserialize_with = "deserialize_null_fields")]    
+    pub filledValue: f64,
 
     pub status: String
 
