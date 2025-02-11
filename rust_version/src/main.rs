@@ -21,19 +21,26 @@ fn main() {
     // so we just remove them. this introduces miniscule price incorrection
     remove_duplicates(&mut data);    
 
-    // println!("{:?}", data);
 
+    // initialize the whole time period
     let time_range = get_time_range(&data).expect("Failed to get time range: ");
+
+
+    // initialize portfolio history based on time_range
     let mut portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)> = time_range.clone()
     .into_iter()
     .map(|d| (d, HashMap::new()))    // create empty portfolio hashmap for every date
     .collect();
 
+    // initialize where we store dates for which certain tickers wiere present in portfolio
+    let mut ticker_history: HashMap<String, (NaiveDate, NaiveDate)> = HashMap::new();
+
+
     let mut portfolio_t: HashMap<String, (f64, f64)> = HashMap::new();
 
 
     for order in &mut data {
-        // println!("{:?}", (&order.ticker, order.dateCreated.as_str()));
+
         // dealing with edge cases: l_EQ means LSE transaction, which is quoted in pennies
         // so we multiply by 100. Also where value transaction, we translate into quantities
         if order.filledQuantity == 0.0 && order.ticker.contains("l_EQ") {
@@ -44,11 +51,13 @@ fn main() {
 
         // filtering out cancelled or rejected orders
         if order.status == String::from("FILLED") {
-            process_order(&mut portfolio_t, &order);
+            process_order(&mut portfolio_t, &order, &mut ticker_history, *time_range.last().unwrap());
+
         } else {
             // pass
         };
 
+        
         let matcher = NaiveDate::from_str(&order.dateCreated).unwrap();
 
 
@@ -58,7 +67,7 @@ fn main() {
     }
 
     // let blarg = NaiveDate::from_str("2025-02-03").unwrap();
-    println!("{:?}", portfolio_history);
+    // println!("{:?}", ticker_history);
     
 }
 
@@ -72,7 +81,6 @@ fn remove_duplicates(orders: &mut Vec<Order>) {
 
 
 fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
-
 
     let root_date = data.first().ok_or("couldn't get last order")?.dateCreated.as_str();    
 
@@ -95,19 +103,20 @@ fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
 
 
 
-// fn get_sparse_portfolio 
-
-//if order.status == String::from("FILLED") 
-            
-// add order to port_t (change port_t)
-// add port_t to port_history
 
 
-fn process_order(portfolio_t: &mut HashMap<String, (f64, f64)>, order: &Order) {
+
+fn process_order(
+    portfolio_t: &mut HashMap<String, (f64, f64)>,
+    order: &Order,
+    ticker_history: &mut HashMap<String, (NaiveDate, NaiveDate)>,
+    last_date: NaiveDate) {
 
     // println!("{}", order.dateCreated);
     let q_1 = order.filledQuantity;
     let p_1 = order.fillPrice;
+    let date = NaiveDate::from_str(order.dateCreated.as_str()).unwrap();
+    let ticker = order.ticker.clone();
 
     match portfolio_t.entry(order.ticker.clone()) {
         Entry::Occupied(mut occupied) => {
@@ -115,17 +124,24 @@ fn process_order(portfolio_t: &mut HashMap<String, (f64, f64)>, order: &Order) {
 
             if *q_0 + q_1 == 0.0 {
                 occupied.remove();
+
+                let (keeps_date, _) = ticker_history.get(&ticker).unwrap();
+                ticker_history.insert(ticker, (*keeps_date, date));
             } else {
                 if q_1 >= 0.0 {
-                    *p_0 = (*q_0* *p_0 + q_1*p_1)/(*q_0 + q_1);    // try using assert eq instead
+                    *p_0 = (*q_0* *p_0 + q_1*p_1)/(*q_0 + q_1);
                     *q_0 += q_1;
+                    ticker_history.insert(ticker.clone(), (date, last_date));
                     } else {
                         *q_0 += q_1;
+                        ticker_history.insert(ticker, (date, last_date));
                     };
         };
     },
         Entry::Vacant(vacant) => {
             vacant.insert((q_1, p_1));
+            ticker_history.insert(ticker.clone(), (date, last_date));
         },
     };
 }                        // returns nothing, just amends portfolio in-place
+
