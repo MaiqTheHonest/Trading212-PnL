@@ -25,7 +25,6 @@ fn main() {
     // initialize the whole time period
     let time_range = get_time_range(&data).expect("Failed to get time range: ");
 
-
     // initialize portfolio history based on time_range
     let mut portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)> = time_range.clone()
     .into_iter()
@@ -35,8 +34,9 @@ fn main() {
     // initialize where we store dates for which certain tickers wiere present in portfolio
     let mut ticker_history: HashMap<String, (NaiveDate, NaiveDate)> = HashMap::new();
 
-
+    // initialize portfolio "holder/folder" at time t
     let mut portfolio_t: HashMap<String, (f64, f64)> = HashMap::new();
+
 
 
     for order in &mut data {
@@ -58,16 +58,16 @@ fn main() {
         };
 
         
-        let matcher = NaiveDate::from_str(&order.dateCreated).unwrap();
+        // set portoflio history's element to a correct pair of Date: portfolio_t
+        let matcher = NaiveDate::from_str(&order.dateCreated).expect("invalid date format");
 
-
-        let index = time_range.iter().position(|&r| r == matcher).unwrap();
+        let index = time_range.iter().position(|&r| r == matcher).expect("time range has no such date");
         portfolio_history[index] = (matcher, portfolio_t.clone());
         
     }
 
     // let blarg = NaiveDate::from_str("2025-02-03").unwrap();
-    // println!("{:?}", ticker_history);
+    println!("{:?}", ticker_history);
     
 }
 
@@ -84,7 +84,7 @@ fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
 
     let root_date = data.first().ok_or("couldn't get last order")?.dateCreated.as_str();    
 
-    // last() returns an option. ok_or converts it to result. "?" propagates error
+    // ^^^ last() returns an option, ok_or converts it to result, "?" propagates the error
 
     let mut start_date = NaiveDate::parse_from_str(&root_date, "%Y-%m-%d")?;
 
@@ -122,18 +122,18 @@ fn process_order(
         Entry::Occupied(mut occupied) => {
             let (q_0, p_0) = occupied.get_mut();
 
-            if *q_0 + q_1 == 0.0 {
-                occupied.remove();
+            if *q_0 + q_1 == 0.0 {                                              // if sold everything
+                occupied.remove();    // removes ticker from portfolio
 
                 let (keeps_date, _) = ticker_history.get(&ticker).unwrap();
                 ticker_history.insert(ticker, (*keeps_date, date));
             } else {
-                if q_1 >= 0.0 {
+                if q_1 >= 0.0 {                                                // if bought some
                     *p_0 = (*q_0* *p_0 + q_1*p_1)/(*q_0 + q_1);
                     *q_0 += q_1;
                     ticker_history.insert(ticker.clone(), (date, last_date));
                     } else {
-                        *q_0 += q_1;
+                        *q_0 += q_1;                                           // if sold some (not everything)
                         ticker_history.insert(ticker, (date, last_date));
                     };
         };
