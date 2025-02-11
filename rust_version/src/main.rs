@@ -66,8 +66,15 @@ fn main() {
         
     }
 
-    // let blarg = NaiveDate::from_str("2025-02-03").unwrap();
     println!("{:?}", ticker_history);
+    // init hashmap of prices <naivedate, f64>          A
+    // init hashmap of hashmaps like above with <string(ticker), hashmaplikeabove>       B
+    // for element in ticker_history, call yahoo with element
+    // make yahoo return hashmap A
+    // pick up the reponse and stuff it into hashmap of hashmaps B.
+    // calculate returns 
+
+
     
 }
 
