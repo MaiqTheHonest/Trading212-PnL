@@ -1,5 +1,6 @@
 mod t212;
 mod yahoo;
+mod stats;
 use chrono::{NaiveDate, Duration};
 // use serde::de::Error;
 use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
@@ -97,17 +98,17 @@ fn main() {
 
     
     // let mut price_history: HashMap<NaiveDate, f64> = HashMap::new();
-    let mut complete_portfolio: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
+    let mut complete_prices: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     for (ticker, (date1, date2)) in ticker_history.into_iter() {
         let single_ticker_history = match yahoo::get_prices(&ticker, date1, date2) {
             Ok(res) => res,
             Err(e) => panic!("Import from yahoo failed with error code: {}", e)
         };
-        complete_portfolio.insert(ticker, single_ticker_history);
+        complete_prices.insert(ticker, single_ticker_history);
     }
 
-    println!("{:?}", complete_portfolio);
+    println!("{:?}", complete_prices);
 
     // calculate returns 
 
