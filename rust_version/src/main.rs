@@ -8,7 +8,7 @@ use crate::t212::Order;
 
 fn main() {
 
-    let pre_dict_tickers = HashMap::from([
+    let pre_dict_tickers = HashMap::from([       // exchange codes
         ("a", "AS"),
         ("d", "DE"),
         ("e", "MC"),
@@ -18,7 +18,7 @@ fn main() {
         ("m", "MI")
         ]);
     
-    let post_dict_tickers = HashMap::from([
+    let post_dict_tickers = HashMap::from([      // country codes
         ("PT", "LS"),
         ("AT", "VI"),
         ("BE", "BR"),
@@ -69,6 +69,7 @@ fn main() {
             // pass
         };
 
+        // changing tickers from T212's format to Yahoo's format
         order.ticker = convert_to_yahoo_ticker(
             order.ticker.clone(), 
             pre_dict_tickers.clone(), 
@@ -93,11 +94,9 @@ fn main() {
         
     }
 
-    println!("{:?}", ticker_history);
 
     
-
-    let mut price_history: HashMap<NaiveDate, f64> = HashMap::new();
+    // let mut price_history: HashMap<NaiveDate, f64> = HashMap::new();
     let mut complete_portfolio: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     for (ticker, (date1, date2)) in ticker_history.into_iter() {
@@ -109,11 +108,7 @@ fn main() {
     }
 
     println!("{:?}", complete_portfolio);
-    // init hashmap of prices <naivedate, f64>          A
-    // init hashmap of hashmaps like above with <string(ticker), hashmaplikeabove>       B
-    // for element in ticker_history, call yahoo with element
-    // make yahoo return hashmap A
-    // pick up the reponse and stuff it into hashmap of hashmaps B.
+
     // calculate returns 
 
 
@@ -158,7 +153,6 @@ fn process_order(
     ticker_history: &mut HashMap<String, (NaiveDate, NaiveDate)>,
     last_date: NaiveDate) {
 
-    // println!("{}", order.dateCreated);
     let q_1 = order.filledQuantity;
     let p_1 = order.fillPrice;
     let date = NaiveDate::from_str(order.dateCreated.as_str()).unwrap();
@@ -189,7 +183,7 @@ fn process_order(
             ticker_history.insert(ticker.clone(), (date, last_date));
         },
     };
-}                        // returns nothing, just amends portfolio in-place
+}      // returns nothing, just amends portfolio_t and ticker_history in-place
 
 
 
@@ -202,20 +196,27 @@ fn convert_to_yahoo_ticker(
     let mut returnable_ticker: String = String::new();
 
     if let Some(pos) = ticker.rfind("_EQ") {
-        let before_eq = &ticker[..pos];
-        let parts: Vec<&str> = before_eq.split('_').collect();
+        let before_eq = &ticker[..pos];                              // take what's before _EQ
+        let parts: Vec<&str> = before_eq.split('_').collect();       // separate what's left by _ and turn into collection
         
+
 
         if parts.len() == 1 {
             let mut pre = parts[0];
             let borse = pre.chars().last().unwrap().to_string();
 
-            let y_borse = match pre_dict_tickers.get(&*borse) {    // the most deranged deref usage I've done
+            let mut y_borse = match pre_dict_tickers.get(&*borse) {    // the most deranged deref usage I've done
                 Some(v) => v,
                 None => panic!("couldn't find exchange with postfix: {}", &borse)
-            };
+            }.to_owned();
+
             pre = &pre[..pre.len() - 1];
+            // let corrupt_tickers = vec!["VUAA"];                   // some Milano tickers don't work so we try same stock in Germany 
+            // if corrupt_tickers.contains(&pre) {
+            //     y_borse = "L";
+            // }
             returnable_ticker = format!("{}.{}", pre, y_borse);
+
 
 
         } else if parts.len() == 2 {

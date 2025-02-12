@@ -1,10 +1,8 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use reqwest::{Client, header::USER_AGENT};
 use serde_json::Value;
-use chrono::{Datelike, Duration, NaiveDate, TimeZone, Utc};
-
-
+use chrono::{Datelike, NaiveDate, TimeZone, Utc};
 
 
 // accepts string slice with ticker passed to it from main
@@ -13,13 +11,12 @@ use chrono::{Datelike, Duration, NaiveDate, TimeZone, Utc};
 pub async fn get_prices(symbol: &str, start_date: NaiveDate, end_date: NaiveDate) -> Result<HashMap<NaiveDate, f64>, Box<dyn std::error::Error>> {
 
     // Convert dates to UNIX timestamps
-    
+    let start_timestamp = to_unix(start_date) - 86400;    // move start_date back a day in case start_date is today
+    let mut end_timestamp = to_unix(end_date);
 
-    // FIX ASAP
-    let mut start_timestamp = to_unix(start_date - Duration::days(2));
-    let mut end_timestamp = to_unix(end_date - Duration::days(1));
-
-
+    if start_timestamp == end_timestamp {
+        end_timestamp += -86400;                          // move end_date back a day in case start and end are the same day now
+    }
     let url = format!(
         "https://query1.finance.yahoo.com/v8/finance/chart/{}?period1={}&period2={}&interval=1d",
         symbol, start_timestamp, end_timestamp
@@ -34,14 +31,11 @@ pub async fn get_prices(symbol: &str, start_date: NaiveDate, end_date: NaiveDate
         .await?;
 
 
-    // println!("Raw Response: {}", response);
-
     let json: Value = serde_json::from_str(&response)?;
 
     let mut price_range: HashMap<NaiveDate, f64> = HashMap::new();
 
     // grotesque json unpacking; we take only timestamps and closing prices
-
     if let Some(timestamps) = json["chart"]["result"][0]["timestamp"].as_array() {
         if let Some(prices) = json["chart"]["result"][0]["indicators"]["quote"][0]["close"].as_array() {
 
@@ -59,7 +53,7 @@ pub async fn get_prices(symbol: &str, start_date: NaiveDate, end_date: NaiveDate
             // println!("{:?}", price_range)
         }
     } else {
-        println!("Could not fetch the price data for ticker: {}", symbol);
+        println!("Could not fetch price data for ticker: {}", symbol);
     }
 
     Ok(price_range)
@@ -75,7 +69,3 @@ fn to_unix(date: NaiveDate) -> i64 {
 fn unix_to_date(timestamp: i64) -> NaiveDate {
     Utc.timestamp_opt(timestamp, 0).unwrap().date_naive()
 }
-
-
-
-// "https://query1.finance.yahoo.com/v8/finance/chart/{}?period1={}&period2={}&interval=1d"
