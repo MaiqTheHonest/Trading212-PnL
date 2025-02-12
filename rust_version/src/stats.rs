@@ -7,5 +7,15 @@ fn calculate_returns(
     complete_prices: HashMap<String, HashMap<NaiveDate, f64>>
 
     ) -> HashMap<NaiveDate, f64> {
-    // hello world
+    
+        
+    let mut scoped_portfolio = portfolio_history[0].1;
+
+    for portfolio in portfolio_history {
+        scoped_portfolio = match portfolio[0].1 {
+            Some(v) => v,
+            None => scoped_portfolio
+        };
+    }
+
     }
