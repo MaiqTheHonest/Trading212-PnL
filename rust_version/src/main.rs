@@ -1,4 +1,5 @@
 mod t212;
+mod yahoo;
 use chrono::{NaiveDate, Duration};
 // use serde::de::Error;
 use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
@@ -58,7 +59,7 @@ fn main() {
         };
 
         
-        // set portoflio history's element to a correct pair of Date: portfolio_t
+        // set portoflio history's element to a correct pair of {Date: portfolio_t}
         let matcher = NaiveDate::from_str(&order.dateCreated).expect("invalid date format");
 
         let index = time_range.iter().position(|&r| r == matcher).expect("time range has no such date");
@@ -67,6 +68,15 @@ fn main() {
     }
 
     println!("{:?}", ticker_history);
+
+    
+
+    let mut price_history: HashMap<NaiveDate, f64> = HashMap::new();
+    let mut complete_portfolio: HashMap<String, (NaiveDate, f64)> = HashMap::new();
+
+    for ticker in ticker_history.iter() {
+
+    }
     // init hashmap of prices <naivedate, f64>          A
     // init hashmap of hashmaps like above with <string(ticker), hashmaplikeabove>       B
     // for element in ticker_history, call yahoo with element
@@ -107,9 +117,6 @@ fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
 
     Ok(time_range)    // return
 }
-
-
-
 
 
 
