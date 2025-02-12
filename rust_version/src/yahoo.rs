@@ -2,7 +2,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use reqwest::{Client, header::USER_AGENT};
 use serde_json::Value;
-use chrono::{NaiveDate, Datelike, TimeZone, Utc};
+use chrono::{Datelike, Duration, NaiveDate, TimeZone, Utc};
 
 
 
@@ -13,8 +13,12 @@ use chrono::{NaiveDate, Datelike, TimeZone, Utc};
 pub async fn get_prices(symbol: &str, start_date: NaiveDate, end_date: NaiveDate) -> Result<HashMap<NaiveDate, f64>, Box<dyn std::error::Error>> {
 
     // Convert dates to UNIX timestamps
-    let start_timestamp = to_unix(start_date);
-    let end_timestamp = to_unix(end_date);
+    
+
+    // FIX ASAP
+    let mut start_timestamp = to_unix(start_date - Duration::days(2));
+    let mut end_timestamp = to_unix(end_date - Duration::days(1));
+
 
     let url = format!(
         "https://query1.finance.yahoo.com/v8/finance/chart/{}?period1={}&period2={}&interval=1d",
@@ -55,7 +59,7 @@ pub async fn get_prices(symbol: &str, start_date: NaiveDate, end_date: NaiveDate
             // println!("{:?}", price_range)
         }
     } else {
-        println!("Could not fetch the price data.");
+        println!("Could not fetch the price data for ticker: {}", symbol);
     }
 
     Ok(price_range)
