@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use reqwest::{Client, header::USER_AGENT};
 use serde_json::Value;
-use chrono::{Datelike, NaiveDate, TimeZone, Utc};
+use chrono::{Datelike, Duration, NaiveDate, TimeZone, Utc};
 
 
 // accepts string slice with ticker passed to it from main
@@ -11,7 +11,7 @@ use chrono::{Datelike, NaiveDate, TimeZone, Utc};
 pub async fn get_prices(symbol: &str, start_date: NaiveDate, end_date: NaiveDate) -> Result<HashMap<NaiveDate, f64>, Box<dyn std::error::Error>> {
 
     // Convert dates to UNIX timestamps
-    let start_timestamp = to_unix(start_date) - 86400;    // move start_date back a day in case start_date is today
+    let start_timestamp = to_unix(start_date - Duration::days(1));    // move start_date back a day in case start_date is today
     let mut end_timestamp = to_unix(end_date);
 
     if start_timestamp == end_timestamp {

@@ -101,6 +101,7 @@ fn main() {
     let mut complete_prices: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     for (ticker, (date1, date2)) in ticker_history.into_iter() {
+        println!("{:?},{:?},{:?}", ticker, date1, date2);
         let single_ticker_history = match yahoo::get_prices(&ticker, date1, date2) {
             Ok(res) => res,
             Err(e) => panic!("Import from yahoo failed with error code: {}", e)
@@ -108,11 +109,14 @@ fn main() {
         complete_prices.insert(ticker, single_ticker_history);
     }
 
-    println!("{:?}", complete_prices);
+    // println!("{:?}", complete_prices);
 
     // calculate returns 
 
 
+    // YOU FORGOT THE LOOP LOL
+    let return_history = stats::calculate_returns(portfolio_history, complete_prices);
+    // println!("{:?}", return_history)
     
 }
 
@@ -127,13 +131,13 @@ fn remove_duplicates(orders: &mut Vec<Order>) {
 
 fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
 
-    let root_date = data.first().ok_or("couldn't get last order")?.dateCreated.as_str();    
+    let root_date = data.first().ok_or("couldn't get first order")?.dateCreated.as_str();    
 
     // ^^^ last() returns an option, ok_or converts it to result, "?" propagates the error
 
     let mut start_date = NaiveDate::parse_from_str(&root_date, "%Y-%m-%d")?;
 
-    let term_date = data.last().ok_or("couldn't get first order")?.dateCreated.as_str();   
+    let term_date = data.last().ok_or("couldn't get last order")?.dateCreated.as_str();   
     let end_date = NaiveDate::parse_from_str(&term_date, "%Y-%m-%d")?;
 
     let mut time_range = Vec::new();
@@ -172,10 +176,16 @@ fn process_order(
                 if q_1 >= 0.0 {                                                // if bought some
                     *p_0 = (*q_0* *p_0 + q_1*p_1)/(*q_0 + q_1);
                     *q_0 += q_1;
-                    ticker_history.insert(ticker.clone(), (date, last_date));
+
+                    ticker_history.entry(ticker.clone())
+                    .and_modify(|e| e.1 = last_date.clone())
+                    .or_insert((date.clone(), last_date.clone()));
                     } else {
                         *q_0 += q_1;                                           // if sold some (not everything)
-                        ticker_history.insert(ticker, (date, last_date));
+
+                        ticker_history.entry(ticker.clone())
+                        .and_modify(|e| e.1 = last_date.clone())
+                        .or_insert((date.clone(), last_date.clone()));
                     };
         };
     },
@@ -199,7 +209,7 @@ fn convert_to_yahoo_ticker(
     if let Some(pos) = ticker.rfind("_EQ") {
         let before_eq = &ticker[..pos];                              // take what's before _EQ
         let parts: Vec<&str> = before_eq.split('_').collect();       // separate what's left by _ and turn into collection
-        
+
 
 
         if parts.len() == 1 {
