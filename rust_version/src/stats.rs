@@ -10,6 +10,7 @@ pub fn calculate_returns(
     let mut return_history: HashMap<NaiveDate, f64> = HashMap::new();
     let mut portfolio = portfolio_history[0].1.clone();
     // println!("{:?}", portfolio_history);
+    let mut days_passed: f64 = 1.0;
     let mut outer_holder_value: f64 = 0.0;
     let mut outer_holder_sum: f64 = 0.0;
 
@@ -44,14 +45,16 @@ pub fn calculate_returns(
 
         };
 
-        let daily_return = (100.0/value_total)*sum_of_mid_returns;
+        let daily_return = (100.0/value_total)*(sum_of_mid_returns + days_passed*0.13856*1.2);
+        days_passed += 1.0;
         println!("{:?}, {:?}", date, daily_return);
         return_history.insert(date, daily_return);    
     };
     
+
     println!("{:?}", portfolio);
-    // for item in complete_prices{
-    //     println!("{:?}", item.1.get(NaiveDate::from_str("2024-02-12").as_ref().unwrap()));
-// };
+    for item in complete_prices{
+        println!("{:?} : {:?}",item.0, item.1.get(NaiveDate::from_str("2025-02-13").as_ref().unwrap()));
+};
     Some(return_history)
 } // if could get it, do as normal. if couldn't get it, last line + break

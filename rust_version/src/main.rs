@@ -1,7 +1,8 @@
 mod t212;
 mod yahoo;
 mod stats;
-use chrono::{NaiveDate, Duration};
+mod dividends; // redundant
+use chrono::{Duration, NaiveDate, Utc};
 // use serde::de::Error;
 use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
 use std::collections::HashSet;
@@ -58,6 +59,9 @@ fn main() {
     // initialize portfolio "holder/folder" at time t
     let mut portfolio_t: HashMap<String, (f64, f64)> = HashMap::new();
 
+    let total_dividends: f64 = dividends::get_dividends().expect("could not fetch dividends");
+    let daily_dividend: f64 = total_dividends / time_range.iter().count() as f64;
+    println!("daily dividend is {:?}", daily_dividend);
 
 
     for order in &mut data {
@@ -149,8 +153,9 @@ fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
 
     let mut start_date = NaiveDate::parse_from_str(&root_date, "%Y-%m-%d")?;
 
-    let term_date = data.last().ok_or("couldn't get last order")?.dateCreated.as_str();   
-    let end_date = NaiveDate::parse_from_str(&term_date, "%Y-%m-%d")?;
+    // let term_date = data.last().ok_or("couldn't get last order")?.dateCreated.as_str();   
+    // let end_date = NaiveDate::parse_from_str(&term_date, "%Y-%m-%d")?;
+    let end_date = Utc::now().date_naive();
 
     let mut time_range = Vec::new();
 
