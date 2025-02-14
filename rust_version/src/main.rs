@@ -64,8 +64,14 @@ fn main() {
 
         // dealing with edge cases: l_EQ means LSE transaction, which is quoted in pennies
         // so we multiply by 100. Also where value transaction, we translate into quantities
-        if order.filledQuantity == 0.0 && order.ticker.contains("l_EQ") {
-            order.filledQuantity = (order.filledValue * 100.0) / order.fillPrice    
+        if order.ticker.contains("l_EQ") {
+            order.fillPrice = order.fillPrice / 100.0 * 1.20;
+        }else{
+            // pass
+        }
+        if order.filledQuantity == 0.0 {
+            order.filledQuantity = (order.filledValue) / order.fillPrice  
+
         } else {
             // pass
         };
@@ -102,10 +108,16 @@ fn main() {
 
     for (ticker, (date1, date2)) in ticker_history.into_iter() {
         println!("{:?},{:?},{:?}", ticker, date1, date2);
-        let single_ticker_history = match yahoo::get_prices(&ticker, date1, date2) {
+        let mut single_ticker_history = match yahoo::get_prices(&ticker, date1, date2) {
             Ok(res) => res,
             Err(e) => panic!("Import from yahoo failed with error code: {}", e)
         };
+        if ticker.contains(".L") {
+            for (_, val) in single_ticker_history.iter_mut() {
+                *val = *val / 100.0 * 1.20;
+            };
+            
+        }else {}
         complete_prices.insert(ticker, single_ticker_history);
     }
 
@@ -116,7 +128,7 @@ fn main() {
 
     // YOU FORGOT THE LOOP LOL
     let return_history = stats::calculate_returns(portfolio_history, complete_prices);
-    // println!("{:?}", return_history)
+    // println!("{:?}",)
     
 }
 

@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 pub fn calculate_returns(
     portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)>,
@@ -13,43 +13,45 @@ pub fn calculate_returns(
     let mut outer_holder_value: f64 = 0.0;
     let mut outer_holder_sum: f64 = 0.0;
 
-    for tupleobject in &portfolio_history {
-        let date = tupleobject.0;
-        if !tupleobject.1.is_empty() {
-            portfolio = tupleobject.1.clone();
+    for tupleobject in portfolio_history {
+
+        let mut value_total: f64 = 0.0;
+        let mut sum_of_mid_returns: f64 = 0.0;
+
+        let date: NaiveDate = tupleobject.0;
+
+        if tupleobject.1.is_empty() == false{
+            portfolio = tupleobject.1;
+        }else{
+          // pass, portfolio remains same as 1 day (iteration) before  
         }
+
+        // if found, value is value and mid return is mid return
+        
+        for (ticker, (q_0, p_0)) in &portfolio {
+            let single_history = complete_prices.get(ticker)?;
+            // println!("{:?}", single_history);
+            if let Some(v) = single_history.get(&date) {        // if price_history doesn't contain this date, it was a weekend.
+                let p_1: f64 = *v;
+                let mid_return: f64 = p_0*q_0*(p_1/p_0 - 1.0);
+                value_total += q_0*p_0;
+                sum_of_mid_returns += mid_return;
+                outer_holder_value = value_total;
+                outer_holder_sum = sum_of_mid_returns;
+            } else {value_total = outer_holder_value.clone();
+                    sum_of_mid_returns = outer_holder_sum.clone();
+                    };
+
+        };
+
+        let daily_return = (100.0/value_total)*sum_of_mid_returns;
+        println!("{:?}, {:?}", date, daily_return);
+        return_history.insert(date, daily_return);    
+    };
     
-        let mut value_total = 0.0;
-        let mut sum_of_mid_returns = 0.0;
-        let mut has_valid_data = false;
-    
-        let mut tickers: Vec<_> = portfolio.keys().collect();
-        tickers.sort();
-    
-        for ticker in tickers {
-            if let Some(single_history) = complete_prices.get(ticker) {
-                if let Some(p_1) = single_history.get(&date) {
-                    let (q_0, p_0) = portfolio[ticker];
-                    let mid_return = q_0 * p_0 * (p_1 / p_0 - 1.0);
-                    value_total += q_0 * p_0;
-                    sum_of_mid_returns += mid_return;
-                    has_valid_data = true;
-                }
-            }
-        }
-    
-        if has_valid_data {
-            outer_holder_value = value_total;
-            outer_holder_sum = sum_of_mid_returns;
-        } else {
-            value_total = outer_holder_value;
-            sum_of_mid_returns = outer_holder_sum;
-        }
-    
-        if value_total != 0.0 {
-            let daily_return = sum_of_mid_returns / value_total;
-            return_history.insert(date, daily_return);
-        }
-    }
+    println!("{:?}", portfolio);
+    // for item in complete_prices{
+    //     println!("{:?}", item.1.get(NaiveDate::from_str("2024-02-12").as_ref().unwrap()));
+// };
     Some(return_history)
 } // if could get it, do as normal. if couldn't get it, last line + break
