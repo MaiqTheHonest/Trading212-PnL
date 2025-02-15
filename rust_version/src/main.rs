@@ -2,6 +2,7 @@ mod t212;
 mod yahoo;
 mod stats;
 mod dividends; // redundant
+mod plotter;
 use chrono::{Duration, NaiveDate, Utc};
 // use serde::de::Error;
 use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
@@ -127,9 +128,12 @@ fn main() {
     }
 
 
-
-    let return_history = stats::calculate_returns(portfolio_history, complete_prices, total_dividends);
-
+    let return_history = match stats::calculate_returns(portfolio_history, complete_prices, total_dividends) {
+        Some(v) => v,
+        None => panic!("Calculating returns failed, check dividends arrived")
+    };
+    
+    plotter::display_to_console(return_history, *time_range.first().unwrap());
     
 }
 

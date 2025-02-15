@@ -65,8 +65,8 @@ pub fn calculate_returns(
         };
 
         volume_covered += value_total;
-        
-        let daily_return = (100.0/value_total)*(sum_of_mid_returns + 1.2*total_dividends*(volume_covered/volume_total));
+
+        let daily_return = (100.0/value_total)*(sum_of_mid_returns + total_dividends*(volume_covered/volume_total));
 
         println!("{:?}, {:?}", date, daily_return);
         return_history.insert(date, daily_return);    

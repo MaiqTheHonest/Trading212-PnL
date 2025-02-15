@@ -44,10 +44,8 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
         total_dividends += item.amount;                          // increase divi
     };
 
-    // println!("{:?}", data);
-    // println!("fetched a total of {} orders", data.len());
-    // println!("{:?}", data.to_ndarray());
-    Ok(total_dividends)
+    // multiply by GBP:USD exchange rate as dividends are always GBP for UK accounts
+    Ok(total_dividends*1.20)
 }
 
 
@@ -66,11 +64,6 @@ pub struct Dividend {                                            // both the str
     pub amount: f64,
     pub paidOn: String
 }
-
-fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> where D: Deserializer<'de> {    // the routine itself  <-||
-    Option::<f64>::deserialize(deserializer).map(|opt| opt.unwrap_or(0.0))
-}
-
 
 
 // THIS IS DEVELOP BRANCH
