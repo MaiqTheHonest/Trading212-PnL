@@ -59,9 +59,10 @@ fn main() {
     // initialize portfolio "holder/folder" at time t
     let mut portfolio_t: HashMap<String, (f64, f64)> = HashMap::new();
 
+    // get dividends to be passed into return calculation
     let total_dividends: f64 = dividends::get_dividends().expect("could not fetch dividends");
-    let daily_dividend: f64 = total_dividends / time_range.iter().count() as f64;
-    println!("daily dividend is {:?}", daily_dividend);
+    // let daily_dividend: f64 = total_dividends / time_range.iter().count() as f64;
+    // println!("total dividends: {:?}, N of days: {:?}", total_dividends, time_range.iter().count() as f64);
 
 
     for order in &mut data {
@@ -74,7 +75,7 @@ fn main() {
             // pass
         }
         if order.filledQuantity == 0.0 {
-            order.filledQuantity = (order.filledValue) / order.fillPrice  
+            order.filledQuantity = (order.filledValue * 1.20) / order.fillPrice  
 
         } else {
             // pass
@@ -125,14 +126,10 @@ fn main() {
         complete_prices.insert(ticker, single_ticker_history);
     }
 
-    // println!("{:?}", complete_prices);
-
-    // calculate returns 
 
 
-    // YOU FORGOT THE LOOP LOL
-    let return_history = stats::calculate_returns(portfolio_history, complete_prices);
-    // println!("{:?}",)
+    let return_history = stats::calculate_returns(portfolio_history, complete_prices, total_dividends);
+
     
 }
 

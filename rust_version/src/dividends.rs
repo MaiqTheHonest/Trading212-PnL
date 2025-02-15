@@ -41,7 +41,7 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
 
     for item in &mut data {
         item.paidOn = item.paidOn.chars().take(10).collect();    // convert date to daily
-        total_dividends += item.amount;
+        total_dividends += item.amount;                          // increase divi
     };
 
     // println!("{:?}", data);
