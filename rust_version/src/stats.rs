@@ -1,5 +1,8 @@
 use chrono::NaiveDate;
 use std::{collections::HashMap, str::FromStr};
+use std::iter;
+
+const RISK_FREE_RATE: f32 = 4.0;
 
 pub fn calculate_returns(
     portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)>,
@@ -78,3 +81,36 @@ pub fn calculate_returns(
 // };
     Some(return_history)
 }  // if could get it, do as normal. if couldn't get it, last line + break
+
+
+
+
+pub fn hashmap_to_sorted_vec(hashmap: HashMap<NaiveDate, f64>) -> Vec<(NaiveDate, f32)> {
+    let mut vec: Vec<(NaiveDate, f32)> = hashmap.into_iter()
+        .map(|(date, value)| (date, value as f32))    // mind the conversion
+        .collect();
+    
+    vec.sort_by_key(|(date, _)| *date);               // sort by naivedate
+    
+    vec
+}
+
+
+
+pub fn take_first_diff(return_history: Vec<(NaiveDate, f32)>) -> Vec<f32> {
+
+    let (_, just_returns): (Vec<NaiveDate>, Vec<f32>) = return_history.into_iter().unzip();
+
+    just_returns
+}
+
+
+
+pub fn mean_sd_sharpe(just_returns: &Vec<f32>) -> (f32, f32, f32){
+    let len = just_returns.len() as f32;
+    let mean: f32 = just_returns.iter().sum::<f32>() / len;
+    let variance: f32 = just_returns.iter().map(|value| (value - mean).powi(2)).sum::<f32>() / (len - 1.0);
+    let sharpe: f32 = (mean - RISK_FREE_RATE)/variance.sqrt();
+
+    (mean, variance.sqrt(), sharpe)
+}

@@ -133,8 +133,16 @@ fn main() {
         None => panic!("Calculating returns failed, check dividends arrived")
     };
     
-    plotter::display_to_console(return_history, *time_range.first().unwrap());
-    
+
+    plotter::display_to_console(&return_history, *time_range.first().unwrap());
+
+    // shadowing
+    let return_history: Vec<(NaiveDate, f32)> = stats::hashmap_to_sorted_vec(return_history);
+    let just_returns: Vec<f32> = stats::take_first_diff(return_history);
+    let (mean, sd, sharpe) = stats::mean_sd_sharpe(&just_returns);
+    let current_return = &just_returns.last().unwrap();
+
+    println!("{:?},{:?},{:?}, current return: {:?}", mean, sd, sharpe, current_return);
 }
 
 
