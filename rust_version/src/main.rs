@@ -30,7 +30,7 @@ fn main() {
 
     
     let mut data = match t212::get_orders() {
-        Ok(v) => {println!("Import from t212 successful");
+        Ok(v) => {println!("\nImport from Trading212 successful");
         v
     },
         Err(e) => panic!("Import from t212 failed with error code: {}", e)
@@ -62,8 +62,6 @@ fn main() {
 
     // get dividends to be passed into return calculation
     let total_dividends: f64 = dividends::get_dividends().expect("could not fetch dividends");
-    // let daily_dividend: f64 = total_dividends / time_range.iter().count() as f64;
-    // println!("total dividends: {:?}, N of days: {:?}", total_dividends, time_range.iter().count() as f64);
 
 
     for order in &mut data {
@@ -109,11 +107,13 @@ fn main() {
 
 
     
-    // let mut price_history: HashMap<NaiveDate, f64> = HashMap::new();
     let mut complete_prices: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
+    println!("\n ticker               lifetime:");
+    
     for (ticker, (date1, date2)) in ticker_history.into_iter() {
-        println!("{:?},{:?},{:?}", ticker, date1, date2);
+        
+        println!("{:?},from {:?} to {:?}", ticker, date1, date2);
         let mut single_ticker_history = match yahoo::get_prices(&ticker, date1, date2) {
             Ok(res) => res,
             Err(e) => panic!("Import from yahoo failed with error code: {}", e)
@@ -134,15 +134,45 @@ fn main() {
     };
     
 
-    plotter::display_to_console(&return_history, *time_range.first().unwrap());
+
+    let start_date = *time_range.first().unwrap();
+    let end_date = *time_range.last().unwrap();
+    let naivetime_held = end_date - start_date;
+    let days_held: f32 = naivetime_held.num_days() as f32;
+    let years_held: f32 = (&days_held)/365.0;
+    let months_held: i32 = ((&years_held*12.0) as i32) % 12;                                                                              // vvv this is incorrect
+    println!("\n \n Found portfolio of {:.} years, {:.} months, and {:.} days.\n", years_held.floor(), months_held, days_held as i32 % 365 - 30*months_held);
+
+
+
+    plotter::display_to_console(&return_history, start_date, end_date);
+
+
 
     // shadowing
     let return_history: Vec<(NaiveDate, f32)> = stats::hashmap_to_sorted_vec(return_history);
-    let just_returns: Vec<f32> = stats::take_first_diff(return_history);
-    let (mean, sd, sharpe) = stats::mean_sd_sharpe(&just_returns);
+    let just_returns: Vec<f32> = stats::strip_dates(return_history);
+    
+    
+    
     let current_return = &just_returns.last().unwrap();
-
-    println!("{:?},{:?},{:?}, current return: {:?}", mean, sd, sharpe, current_return);
+    let annual_return = ((*current_return/100.0 + 1.0).powf(1.0/(&years_held)) - 1.0) * 100.0;
+    let daily_returns: Vec<f32> = stats::get_daily_returns(just_returns.clone());
+    let (mean, sd, sharpe) = stats::mean_sd_sharpe(&daily_returns);
+    
+    println!("                    _________________________________________");
+    println!("                   |                       |                 |");
+    println!("                   | {0: <21} | {1: <15.4} | ", "unrealised PnL(%)", current_return);
+    println!("                   |                       |                 |");
+    println!("                   | {0: <21} | {1: <15.4} | ", "APR(%)", annual_return);
+    println!("                   |                       |                 |");
+    println!("                   | {0: <21} | {1: <15.4} | ", "std. deviation", sd);
+    println!("                   |                       |                 |");
+    println!("                   | {0: <21} | {1: <15.4} | ", "Sharpe ratio", sharpe);
+    println!("                   |                       |                 |");
+    println!("                   | {0: <21} | {1: <15.4} | ", "daily avg. return(%)", mean);
+    println!("                   |                       |                 |");
+    println!("                    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");
 }
 
 
@@ -224,6 +254,7 @@ fn process_order(
 
 
 
+
 fn convert_to_yahoo_ticker(
     ticker: String,
     pre_dict_tickers: HashMap<&str, &str>,
@@ -242,7 +273,7 @@ fn convert_to_yahoo_ticker(
             let mut pre = parts[0];
             let borse = pre.chars().last().unwrap().to_string();
 
-            let mut y_borse = match pre_dict_tickers.get(&*borse) {    // the most deranged deref usage I've done
+            let y_borse = match pre_dict_tickers.get(&*borse) {    // the most deranged deref usage I've done
                 Some(v) => v,
                 None => panic!("couldn't find exchange with postfix: {}", &borse)
             }.to_owned();

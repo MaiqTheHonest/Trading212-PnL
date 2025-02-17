@@ -40,9 +40,9 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
         item.dateCreated = item.dateCreated.chars().take(10).collect();    // convert date to daily
     }
 
-    // println!("{:?}", data);
-    // println!("fetched a total of {} orders", data.len());
-    // println!("{:?}", data.to_ndarray());
+
+    println!("\nfetched a total of {} orders", data.len());
+
     Ok(data)
 }
 
@@ -122,7 +122,7 @@ fn process_items(orders: Items) -> (String, Vec<Order>) {
         Some(v) => v,                       // if it worked, return unxi timestamp as cursor (blarg)
         None => String::from("complete")    // it it didn't, return "complete" as cursor (blarg)
     };
-    eprintln!("{:?}", blarg);
+    eprintln!("processed page: {:?}", blarg);
     (blarg, orders.items)
 }
 

@@ -1,8 +1,9 @@
 use chrono::NaiveDate;
-use std::{collections::HashMap, str::FromStr};
-use std::iter;
+use std::collections::HashMap;
 
-const RISK_FREE_RATE: f32 = 4.0;
+
+const RISK_FREE_RATE: f32 = 0.03;
+const N_MARKET_DAYS: f32 = 252.0;
 
 pub fn calculate_returns(
     portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)>,
@@ -53,7 +54,7 @@ pub fn calculate_returns(
         for (ticker, (q_0, p_0)) in &portfolio {
 
             let single_history = complete_prices.get(ticker)?;
-            // println!("{:?}", single_history);
+
             if let Some(v) = single_history.get(&date) {        // if price_history doesn't contain this date, it was a weekend.
                 let p_1: f64 = *v;
                 let mid_return: f64 = p_0*q_0*(p_1/p_0 - 1.0);
@@ -71,16 +72,13 @@ pub fn calculate_returns(
 
         let daily_return = (100.0/value_total)*(sum_of_mid_returns + total_dividends*(volume_covered/volume_total));
 
-        println!("{:?}, {:?}", date, daily_return);
+        // println!("{:?}, {:?}", date, daily_return);
         return_history.insert(date, daily_return);    
     };
     
 
-    // for item in complete_prices{
-        // println!("{:?} : {:?}",item.0, item.1.get(NaiveDate::from_str("2025-02-13").as_ref().unwrap()));
-// };
     Some(return_history)
-}  // if could get it, do as normal. if couldn't get it, last line + break
+} 
 
 
 
@@ -97,7 +95,7 @@ pub fn hashmap_to_sorted_vec(hashmap: HashMap<NaiveDate, f64>) -> Vec<(NaiveDate
 
 
 
-pub fn take_first_diff(return_history: Vec<(NaiveDate, f32)>) -> Vec<f32> {
+pub fn strip_dates(return_history: Vec<(NaiveDate, f32)>) -> Vec<f32> {
 
     let (_, just_returns): (Vec<NaiveDate>, Vec<f32>) = return_history.into_iter().unzip();
 
@@ -105,12 +103,28 @@ pub fn take_first_diff(return_history: Vec<(NaiveDate, f32)>) -> Vec<f32> {
 }
 
 
+pub fn get_daily_returns(mut just_returns: Vec<f32>) -> Vec<f32> {
+
+    let mut prev_value: f32 = 100.0;
+
+    for value in just_returns.iter_mut() {
+        let daily_return = ((*value + 100.0 - prev_value) / prev_value) * 100.0;
+        *value = daily_return;  
+        prev_value = *value + prev_value;  
+
+    };
+    just_returns
+
+}
+
 
 pub fn mean_sd_sharpe(just_returns: &Vec<f32>) -> (f32, f32, f32){
     let len = just_returns.len() as f32;
-    let mean: f32 = just_returns.iter().sum::<f32>() / len;
+    let blarg: f32 = just_returns.iter().map(|value| (value/100.0 + 1.0)).product::<f32>();
+    let mean: f32 = (blarg.powf(1.0 / len) - 1.0)*100.0;
     let variance: f32 = just_returns.iter().map(|value| (value - mean).powi(2)).sum::<f32>() / (len - 1.0);
-    let sharpe: f32 = (mean - RISK_FREE_RATE)/variance.sqrt();
+    let daily_risk_free_rate: f32 = ((1.0 + RISK_FREE_RATE).powf(1.0 / N_MARKET_DAYS) - 1.0)*100.0;
+    let sharpe: f32 = (mean - daily_risk_free_rate)/(variance.sqrt());
 
     (mean, variance.sqrt(), sharpe)
 }

@@ -5,7 +5,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use std::error::Error;
 use std::fs;
 use chrono::DateTime;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use std::{thread, time};
 
 // dividends.rs (this block) contains a lot of irrelevant dead code and copies from t212.rs
@@ -21,7 +21,7 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
         let api_response = call_api(&cursor).await;
-        println!("{:?}", &api_response);
+        // println!("{:?}", &api_response);
 
         (cursor, orders) = match api_response {   // process_items returns a tuple so we catch both cursor
             Ok(v) => process_items(v),            // and orders in this match
@@ -32,7 +32,7 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
         };
 
         data.append(&mut orders);
-        // println!("{:?}", data);
+
         thread::sleep(time::Duration::from_millis(10))
     };
 
