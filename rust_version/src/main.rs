@@ -9,9 +9,13 @@ use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
 use std::collections::HashSet;
 use crate::t212::Order;
 use std::io::stdin;
+use std::process::Command;
 
 fn main() {
 
+    if cfg!(target_os = "windows") {
+        let _ = Command::new("chcp").arg("65001").status();
+    }
     let pre_dict_tickers = HashMap::from([       // exchange codes
         ("a", "AS"),
         ("d", "DE"),
