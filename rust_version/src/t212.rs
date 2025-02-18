@@ -6,7 +6,7 @@ use std::error::Error;
 use std::fs;
 use chrono::DateTime;
 use serde::{Deserialize, Deserializer};
-use std::{thread, time};
+// use std::{thread, time};
 
 
 
@@ -30,7 +30,7 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
         };
 
         data.append(&mut orders);
-        thread::sleep(time::Duration::from_millis(10))
+        // thread::sleep(time::Duration::from_millis(10))
     };
 
     

@@ -8,6 +8,7 @@ use chrono::{Duration, NaiveDate, Utc};
 use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
 use std::collections::HashSet;
 use crate::t212::Order;
+use std::io::stdin;
 
 fn main() {
 
@@ -173,6 +174,9 @@ fn main() {
     println!("                   | {0: <21} | {1: <15.4} | ", "daily avg. return(%)", mean);
     println!("                   |                       |                 |");
     println!("                    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");
+
+    println!("Press any key to exit...");
+    stdin().read_line(&mut String::new()).unwrap();
 }
 
 
