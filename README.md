@@ -16,3 +16,15 @@ T212 allows **6x50** requests per minute => time delay for portfolio histories w
 Thank you to [loony-bean](https://github.com/loony-bean) for `textplots`  (you should add x_tick customisation).
 
 
+
+
+## Usage
+
+
+Place a `.txt` file with your valid Trading212 API key (no spaces) into the same folder as `t212.exe` and launch executable (ideally via PowerShell or any other terminal that supports colour and UTF-8).
+
+
+<br />
+<br />
+
+Alternatively, download the full rust_version, insert api key into the existing .txt file and `cargo run`.
