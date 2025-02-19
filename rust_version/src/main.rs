@@ -10,12 +10,16 @@ use std::collections::HashSet;
 use crate::t212::Order;
 use std::io::stdin;
 use std::process::Command;
+use crate::stats::GBPUSD;
 
 fn main() {
 
+    // switch to UTF-8 support by default
     if cfg!(target_os = "windows") {
         let _ = Command::new("chcp").arg("65001").status();
     }
+
+
     let pre_dict_tickers = HashMap::from([       // exchange codes
         ("a", "AS"),
         ("d", "DE"),
@@ -74,12 +78,12 @@ fn main() {
         // dealing with edge cases: l_EQ means LSE transaction, which is quoted in pennies
         // so we multiply by 100. Also where value transaction, we translate into quantities
         if order.ticker.contains("l_EQ") {
-            order.fillPrice = order.fillPrice / 100.0 * 1.20;
+            order.fillPrice = order.fillPrice / 100.0 * GBPUSD;
         }else{
             // pass
         }
         if order.filledQuantity == 0.0 {
-            order.filledQuantity = (order.filledValue * 1.20) / order.fillPrice  
+            order.filledQuantity = (order.filledValue * GBPUSD) / order.fillPrice  
 
         } else {
             // pass
@@ -125,7 +129,7 @@ fn main() {
         };
         if ticker.contains(".L") {
             for (_, val) in single_ticker_history.iter_mut() {
-                *val = *val / 100.0 * 1.20;
+                *val = *val / 100.0 * GBPUSD;
             };
             
         }else {}

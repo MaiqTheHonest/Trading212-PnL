@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 const RISK_FREE_RATE: f32 = 0.03;
 const N_MARKET_DAYS: f32 = 252.0;
+pub const GBPUSD: f64 = 1.20;
 
 pub fn calculate_returns(
     portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)>,

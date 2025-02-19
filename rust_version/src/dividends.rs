@@ -7,6 +7,7 @@ use std::fs;
 use chrono::DateTime;
 use serde::Deserialize;
 use std::{thread, time};
+use crate::stats::GBPUSD;
 
 // dividends.rs (this block) contains a lot of irrelevant dead code and copies from t212.rs
 // I intend to gracefully include it into t212.rs asap with just a new div struct to deserialize into
@@ -45,7 +46,7 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
     };
 
     // multiply by GBP:USD exchange rate as dividends are always GBP for UK accounts
-    Ok(total_dividends*1.20)
+    Ok(total_dividends*GBPUSD)
 }
 
 
