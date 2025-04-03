@@ -6,8 +6,9 @@ use std::error::Error;
 use std::fs;
 use chrono::DateTime;
 use serde::{Deserialize, Deserializer};
-// use std::{thread, time};
-
+use std::{thread, time::Duration};
+// use futures::future::{BoxFuture, FutureExt, Future};
+// use std::pin::Pin;
 
 
 #[tokio::main]
@@ -19,7 +20,7 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
 
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
-        let api_response = call_api(&cursor).await;
+        let api_response = recursive_call_api(&cursor).await;
 
         (cursor, orders) = match api_response {   // process_items returns a tuple so we catch both cursor
             Ok(v) => process_items(v),            // and orders in this match
@@ -78,10 +79,10 @@ fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> whe
     Option::<f64>::deserialize(deserializer).map(|opt| opt.unwrap_or(0.0))
 }
 
-
-
 // THIS IS DEVELOP BRANCH
-async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
+
+
+async fn recursive_call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>>{
 
     let api_key = fs::read_to_string("api_key.txt")
     .expect("could not find api_key.txt");
@@ -94,7 +95,7 @@ async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
     let params = HashMap::from([
         ("cursor", current_cursor.as_str()),
         ("ticker", ""),
-        ("limit", "40")]);
+        ("limit", "30")]);
 
     let client = reqwest::Client::new();
     let response = client
@@ -109,9 +110,16 @@ async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
         Ok(catcher)
 
     } else {
-        Err(format!("API call failed: {}", response.status()).into())
+        if response.status().as_str().contains("429"){  // 429 means too many requests
+            countdown(60);
+            let d2_response = Box::pin(recursive_call_api(current_cursor)).await;  // Box::pin because Rust doesn't allow recursive async funcs that are not boxed
+            return d2_response
+        } else {
+            Err(format!("API call failed: {}", response.status()).into())
+        }
     }
 }
+
 
 
 
@@ -143,3 +151,15 @@ fn extract_unix(timestamp: &Vec<Order>) -> Option<String> {
     Some(timestamp)
 }
 
+
+
+fn countdown(mut seconds: i32){
+    while seconds > 0 {
+        print!("\rAPI rate limit exceeded, further orders fetched automatically in {}", seconds);
+        std::io::Write::flush(&mut std::io::stdout()).unwrap(); // flush last line
+        thread::sleep(Duration::from_secs(1));
+        seconds -= 1;
+    }
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();     // flush it again at the end
+    println!("");
+}

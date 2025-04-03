@@ -112,7 +112,7 @@ fn process_items(orders: Items) -> (String, Vec<Dividend>) {
     if orders.nextPagePath == None {
         blarg = String::from("complete");
     }
-    eprintln!("{:?}", blarg);
+    eprintln!("Dividend import from Trading212: {}", blarg);
     (blarg, orders.items)
 }
 

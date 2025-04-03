@@ -39,10 +39,10 @@ fn main() {
 
     
     let mut data = match t212::get_orders() {
-        Ok(v) => {println!("\nImport from Trading212 successful");
+        Ok(v) => {println!("\nOrder import from Trading212: complete");
         v
     },
-        Err(e) => panic!("Import from t212 failed with error code: {}", e)
+        Err(e) => panic!("Order import from t212 failed with error code: {}", e)
     };
 
     // REVERSE IS IMPORTANT, as transactions arrive in inverse order
