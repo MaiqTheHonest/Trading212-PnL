@@ -7,10 +7,8 @@ use std::fs;
 use chrono::DateTime;
 use serde::Deserialize;
 use std::{thread, time};
-use crate::stats::GBPUSD;
+use crate::stats::GBPUSD; // change this to dynamic FX
 
-// dividends.rs (this block) contains a lot of irrelevant dead code and copies from t212.rs
-// I intend to gracefully include it into t212.rs asap with just a new div struct to deserialize into
 
 #[tokio::main]
 pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
