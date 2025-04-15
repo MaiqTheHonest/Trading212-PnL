@@ -3,7 +3,7 @@ mod yahoo;
 mod stats;
 mod dividends; // redundant
 mod plotter;
-use chrono::{Duration, NaiveDate, Utc};
+use chrono::{Days, Duration, NaiveDate, Utc};
 // use serde::de::Error;
 use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
 use std::collections::HashSet;
@@ -62,11 +62,22 @@ fn main() {
 
 
 
-    let fxgbp_history: HashMap<NaiveDate, f64> = match yahoo::get_prices("GBPUSD=X", start_date, end_date) {
+    // getting the fx rate history
+    let mut fxgbp_history: HashMap<NaiveDate, f64> = match yahoo::get_prices("GBPUSD=X", start_date - Duration::days(2), end_date) {
         Ok(res) => res,
         Err(e) => panic!("FX import from yahoo failed: {e}")
     };
-    println!("{:?}", fxgbp_history);
+
+
+    // yahoo returns no prices for weekends, so I interpolate using Friday's fx rate
+    for (key, value) in fxgbp_history.clone() {
+        if let Some(next_day) = key.checked_add_days(Days::new(1)) {
+            if !fxgbp_history.contains_key(&next_day) {
+                fxgbp_history.insert(next_day, value);
+            }
+        }
+    };
+
 
     // initialize portfolio history based on time_range
     let mut portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)> = time_range.clone()
