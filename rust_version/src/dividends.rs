@@ -44,7 +44,8 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
     };
 
     // multiply by GBP:USD exchange rate as dividends are always GBP for UK accounts
-    Ok(total_dividends*GBPUSD)
+
+    Ok(total_dividends)
 }
 
 

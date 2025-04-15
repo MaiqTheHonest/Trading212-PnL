@@ -95,7 +95,7 @@ async fn recursive_call_api(current_cursor: &String) -> Result<Items, Box<dyn Er
     let params = HashMap::from([
         ("cursor", current_cursor.as_str()),
         ("ticker", ""),
-        ("limit", "30")]);
+        ("limit", "50")]);
 
     let client = reqwest::Client::new();
     let response = client

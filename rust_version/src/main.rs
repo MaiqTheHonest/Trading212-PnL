@@ -36,26 +36,37 @@ fn main() {
         ("BE", "BR"),
         ("CA", "TO")
         ]);
-
     
-    let mut data = match t212::get_orders() {
-        Ok(v) => {println!("\nOrder import from Trading212: complete");
-        v
-    },
+        
+        let mut data = match t212::get_orders() {
+            Ok(v) => {println!("\nOrder import from Trading212: complete");
+            v
+        },
         Err(e) => panic!("Order import from t212 failed with error code: {}", e)
     };
-
+    
     // REVERSE IS IMPORTANT, as transactions arrive in inverse order
     // after this reverse(), time is aligned with vector index (ascending)
     data.reverse();
-
+    
     // duplicates occur from T212 treating partially filled orders as fully filled
     // so we just remove them. this introduces miniscule price incorrection
     remove_duplicates(&mut data);    
-
-
+    
+    
     // initialize the whole time period
     let time_range = get_time_range(&data).expect("Failed to get time range: ");
+    
+    let start_date = *time_range.first().unwrap();
+    let end_date = *time_range.last().unwrap();
+
+
+
+    let fxgbp_history: HashMap<NaiveDate, f64> = match yahoo::get_prices("GBPUSD=X", start_date, end_date) {
+        Ok(res) => res,
+        Err(e) => panic!("FX import from yahoo failed: {e}")
+    };
+    println!("{:?}", fxgbp_history);
 
     // initialize portfolio history based on time_range
     let mut portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)> = time_range.clone()
@@ -70,20 +81,28 @@ fn main() {
     let mut portfolio_t: HashMap<String, (f64, f64)> = HashMap::new();
 
     // get dividends to be passed into return calculation
-    let total_dividends: f64 = dividends::get_dividends().expect("could not fetch dividends");
+    let gbpusd: &f64 = fxgbp_history.get(&end_date).unwrap();
+    let total_dividends: f64 = dividends::get_dividends()
+    .expect("could not fetch dividends") * gbpusd;
+
 
 
     for order in &mut data {
 
+        let matcher_date = NaiveDate::from_str(&order.dateCreated).expect("couldn't parse dateCreated: invalid date format");
+
+        let gbpusd: &f64 = fxgbp_history.get(&matcher_date).expect(&format!("couldn't get FX GBPUSD for {}", matcher_date));
+
         // dealing with edge cases: l_EQ means LSE transaction, which is quoted in pennies
         // so we multiply by 100. Also where value transaction, we translate into quantities
         if order.ticker.contains("l_EQ") {
-            order.fillPrice = order.fillPrice / 100.0 * GBPUSD;
+            order.fillPrice = order.fillPrice / 100.0 * gbpusd;
+            // get order.datecreated's gbpusd from HashMap <FX>
         }else{
             // pass
         }
         if order.filledQuantity == 0.0 {
-            order.filledQuantity = (order.filledValue * GBPUSD) / order.fillPrice  
+            order.filledQuantity = (order.filledValue * gbpusd) / order.fillPrice  
 
         } else {
             // pass
@@ -107,10 +126,8 @@ fn main() {
 
 
         // set portoflio history's element to a correct pair of {Date: portfolio_t}
-        let matcher = NaiveDate::from_str(&order.dateCreated).expect("invalid date format");
-
-        let index = time_range.iter().position(|&r| r == matcher).expect("time range has no such date");
-        portfolio_history[index] = (matcher, portfolio_t.clone());
+        let index = time_range.iter().position(|&r| r == matcher_date).expect("time range has no such date");
+        portfolio_history[index] = (matcher_date, portfolio_t.clone());
         
     }
 
@@ -128,8 +145,9 @@ fn main() {
             Err(e) => panic!("Import from yahoo failed with error code: {}", e)
         };
         if ticker.contains(".L") {
-            for (_, val) in single_ticker_history.iter_mut() {
-                *val = *val / 100.0 * GBPUSD;
+            for (date, val) in single_ticker_history.iter_mut() {
+                // gets the current FX rate from the FX history we found earlier, querying by "date"  vvv
+                *val = *val / 100.0 * (*fxgbp_history.get(&date).expect(&format!("couldn't get FX GBPUSD for {}", date)));
             };
             
         }else {}
@@ -144,13 +162,13 @@ fn main() {
     
 
 
-    let start_date = *time_range.first().unwrap();
-    let end_date = *time_range.last().unwrap();
+
     let naivetime_held = end_date - start_date;
     let days_held: f32 = naivetime_held.num_days() as f32;
     let years_held: f32 = (&days_held)/365.0;
     let months_held: i32 = ((&years_held*12.0) as i32) % 12;                                                                              // vvv this is incorrect
     println!("\n \n Found portfolio of {:.} years, {:.} months, and {:.} days.\n", years_held.floor(), months_held, days_held as i32 % 365 - 30*months_held);
+    println!("Current GBP/USD = {}", gbpusd);
 
 
 
@@ -315,5 +333,4 @@ fn convert_to_yahoo_ticker(
     returnable_ticker
 }
     
-
 
