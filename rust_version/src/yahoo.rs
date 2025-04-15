@@ -1,3 +1,4 @@
+use core::f64;
 use std::collections::HashMap;
 
 use reqwest::{Client, header::USER_AGENT};
@@ -69,3 +70,4 @@ fn to_unix(date: NaiveDate) -> i64 {
 fn unix_to_date(timestamp: i64) -> NaiveDate {
     Utc.timestamp_opt(timestamp, 0).unwrap().date_naive()
 }
+

@@ -63,20 +63,32 @@ fn main() {
 
 
     // getting the fx rate history
-    let mut fxgbp_history: HashMap<NaiveDate, f64> = match yahoo::get_prices("GBPUSD=X", start_date - Duration::days(2), end_date) {
-        Ok(res) => res,
-        Err(e) => panic!("FX import from yahoo failed: {e}")
-    };
+    let fx_list: Vec<&str> = vec!["GBPUSD", "GBPEUR"];
+    let mut fx_history: HashMap<&str, HashMap<NaiveDate, f64>> = HashMap::new();
+
+    for fx in fx_list {
+        let temp_history: HashMap<NaiveDate, f64> = match yahoo::get_prices(format!("{}=X", fx).as_str(), start_date - Duration::days(2), end_date) {
+            Ok(res) => res,
+            Err(e) => panic!("FX import from yahoo failed: {e}")
+        };
+        fx_history.insert(fx, temp_history);
+
+    }
+
 
 
     // yahoo returns no prices for weekends, so I interpolate using Friday's fx rate
-    for (key, value) in fxgbp_history.clone() {
-        if let Some(next_day) = key.checked_add_days(Days::new(1)) {
-            if !fxgbp_history.contains_key(&next_day) {
-                fxgbp_history.insert(next_day, value);
+
+    for (_, single_fx_history) in fx_history.iter_mut() {
+        for (key, value) in single_fx_history.clone() {
+            if let Some(next_day) = key.checked_add_days(Days::new(1)) {
+                if !single_fx_history.contains_key(&next_day) {
+                    single_fx_history.insert(next_day, value);
+                }
             }
-        }
-    };
+        };
+    }
+
 
 
     // initialize portfolio history based on time_range
@@ -92,7 +104,7 @@ fn main() {
     let mut portfolio_t: HashMap<String, (f64, f64)> = HashMap::new();
 
     // get dividends to be passed into return calculation
-    let gbpusd: &f64 = fxgbp_history.get(&end_date).unwrap();
+    let gbpusd: &f64 = fx_history.get("GBPUSD").unwrap().get(&end_date).unwrap();
     let total_dividends: f64 = dividends::get_dividends()
     .expect("could not fetch dividends") * gbpusd;
 
@@ -102,18 +114,18 @@ fn main() {
 
         let matcher_date = NaiveDate::from_str(&order.dateCreated).expect("couldn't parse dateCreated: invalid date format");
 
-        let gbpusd: &f64 = fxgbp_history.get(&matcher_date).expect(&format!("couldn't get FX GBPUSD for {}", matcher_date));
+        let gbpusd: &f64 = fx_history.get("GBPUSD").unwrap().get(&matcher_date).expect(&format!("couldn't get FX GBPUSD for {}", matcher_date));
 
         // dealing with edge cases: l_EQ means LSE transaction, which is quoted in pennies
         // so we multiply by 100. Also where value transaction, we translate into quantities
         if order.ticker.contains("l_EQ") {
-            order.fillPrice = order.fillPrice / 100.0 * gbpusd;
+            order.fillPrice = order.fillPrice / 100.0;
             // get order.datecreated's gbpusd from HashMap <FX>
         }else{
             // pass
         }
         if order.filledQuantity == 0.0 {
-            order.filledQuantity = (order.filledValue * gbpusd) / order.fillPrice  
+            order.filledQuantity = order.filledValue / order.fillPrice  
 
         } else {
             // pass
@@ -158,7 +170,7 @@ fn main() {
         if ticker.contains(".L") {
             for (date, val) in single_ticker_history.iter_mut() {
                 // gets the current FX rate from the FX history we found earlier, querying by "date"  vvv
-                *val = *val / 100.0 * (*fxgbp_history.get(&date).expect(&format!("couldn't get FX GBPUSD for {}", date)));
+                *val = *val / 100.0 * (fx_history.get("GBPUSD").unwrap().get(&date).expect(&format!("couldn't get FX GBPUSD for {}", date)));
             };
             
         }else {}

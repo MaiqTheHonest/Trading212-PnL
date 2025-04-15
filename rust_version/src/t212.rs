@@ -21,6 +21,7 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
         let api_response = recursive_call_api(&cursor).await;
+        // println!("{:?}", api_response);
 
         (cursor, orders) = match api_response {   // process_items returns a tuple so we catch both cursor
             Ok(v) => process_items(v),            // and orders in this match
@@ -29,8 +30,8 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
                 break
             }
         };
-
         data.append(&mut orders);
+        
         // thread::sleep(time::Duration::from_millis(10))
     };
 
