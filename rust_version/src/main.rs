@@ -5,7 +5,7 @@ mod dividends; // redundant
 mod plotter;
 use chrono::{Days, Duration, NaiveDate, Utc};
 // use serde::de::Error;
-use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
+use std::{collections::{hash_map::Entry, HashMap, BTreeMap}, error::Error, str::FromStr};
 use std::collections::HashSet;
 use crate::t212::Order;
 use std::io::stdin;
@@ -62,8 +62,9 @@ fn main() {
 
 
 
+
     // getting the fx rate history
-    let fx_list: Vec<&str> = vec!["GBPUSD", "GBPEUR"];
+    let fx_list: Vec<&str> = vec!["GBPUSD", "GBPEUR", "GBPCAD"];
     let mut fx_history: HashMap<&str, HashMap<NaiveDate, f64>> = HashMap::new();
 
     for fx in fx_list {
@@ -74,20 +75,43 @@ fn main() {
         fx_history.insert(fx, temp_history);
 
     }
-
-
-
     // yahoo returns no prices for weekends, so I interpolate using Friday's fx rate
 
-    for (_, single_fx_history) in fx_history.iter_mut() {
-        for (key, value) in single_fx_history.clone() {
-            if let Some(next_day) = key.checked_add_days(Days::new(1)) {
-                if !single_fx_history.contains_key(&next_day) {
-                    single_fx_history.insert(next_day, value);
+    for _ in 0..3{
+        for (_, single_fx_history) in fx_history.iter_mut() {
+            for (key, value) in single_fx_history.clone() {
+                if let Some(next_day) = key.checked_add_days(Days::new(1)) {
+                    if !single_fx_history.contains_key(&next_day) {
+                        single_fx_history.insert(next_day, value);
+                    }
                 }
             }
-        };
-    }
+        }
+    };
+    // let mut filled_map: BTreeMap<NaiveDate, &str, HashMap<NaiveDate, f64>> = BTreeMap::new();
+    // filled_map.extend(fx_history); // Start with the original values
+
+    // let keys: Vec<_> = filled_map.keys().cloned().collect();
+
+    // for pair in keys.windows(2) {
+    //     let start = pair[0];
+    //     let end = pair[1];
+
+    //     let value = filled_map.get(&start).cloned().unwrap();
+
+    //     let mut current = start.succ_opt().unwrap(); // start + 1 day
+
+    //     while current < end {
+    //         filled_map.entry(current).or_insert(value.clone());
+    //         current = current.succ_opt().unwrap();
+    //     }
+    // }
+
+    // for fx in fx_history.get("GBPUSD").unwrap().iter(){
+    //     println!("{:?}", fx);
+    // }
+// FX_HISTORY EXISTS
+
 
 
 
@@ -104,9 +128,9 @@ fn main() {
     let mut portfolio_t: HashMap<String, (f64, f64)> = HashMap::new();
 
     // get dividends to be passed into return calculation
-    let gbpusd: &f64 = fx_history.get("GBPUSD").unwrap().get(&end_date).unwrap();
+    // let gbpusd: &f64 = fx_history.get("GBPUSD").unwrap().get(&end_date).unwrap();
     let total_dividends: f64 = dividends::get_dividends()
-    .expect("could not fetch dividends") * gbpusd;
+    .expect("could not fetch dividends");
 
 
 
@@ -114,7 +138,7 @@ fn main() {
 
         let matcher_date = NaiveDate::from_str(&order.dateCreated).expect("couldn't parse dateCreated: invalid date format");
 
-        let gbpusd: &f64 = fx_history.get("GBPUSD").unwrap().get(&matcher_date).expect(&format!("couldn't get FX GBPUSD for {}", matcher_date));
+        // let gbpusd: &f64 = fx_history.get("GBPUSD").unwrap().get(&matcher_date).expect(&format!("couldn't get FX GBPUSD for {}", matcher_date));
 
         // dealing with edge cases: l_EQ means LSE transaction, which is quoted in pennies
         // so we multiply by 100. Also where value transaction, we translate into quantities
@@ -136,6 +160,44 @@ fn main() {
             order.ticker.clone(), 
             pre_dict_tickers.clone(), 
             post_dict_tickers.clone());
+
+
+        
+        let euro_borsen = vec![".AS", ".DE", ".MC", ".PA", ".SW", ".MI", ".LS", ".AT", ".BE"];
+        let contains_any: bool = euro_borsen.iter().any(|&b| order.ticker.contains(b));
+
+        let mut temp_fx: &f64 = &0.0;
+        
+        if order.ticker.contains(".TO") {
+            temp_fx = fx_history
+                .get("GBPCAD")
+                .unwrap()
+                .get(&matcher_date)
+                .expect(&format!("couldn't get FX GBPCAD for {}", &matcher_date));
+            order.fillPrice = order.fillPrice / temp_fx;
+        } else {
+            if contains_any {
+                temp_fx = fx_history
+                    .get("GBPEUR")
+                    .unwrap()
+                    .get(&matcher_date)
+                    .expect(&format!("couldn't get FX GBPEUR for {}", &matcher_date));
+                order.fillPrice = order.fillPrice / temp_fx;
+            } else if order.ticker.contains(".L") {
+                // do nothing as it is already GBP and not USD or GBX;
+            } else {
+                temp_fx = fx_history
+                    .get("GBPUSD")
+                    .unwrap()
+                    .get(&matcher_date)
+                    .expect(&format!("couldn't get FX GBPUSD for {}", &matcher_date));
+                order.fillPrice = order.fillPrice / temp_fx;
+            }
+        };
+        // println!("{},{}", matcher_date, temp_fx);
+        // order = *val / temp_fx;
+    
+
 
         // filtering out cancelled or rejected orders
         if order.status == String::from("FILLED") {
@@ -167,18 +229,53 @@ fn main() {
             Ok(res) => res,
             Err(e) => panic!("Import from yahoo failed with error code: {}", e)
         };
-        if ticker.contains(".L") {
-            for (date, val) in single_ticker_history.iter_mut() {
-                // gets the current FX rate from the FX history we found earlier, querying by "date"  vvv
-                *val = *val / 100.0 * (fx_history.get("GBPUSD").unwrap().get(&date).expect(&format!("couldn't get FX GBPUSD for {}", date)));
-            };
-            
-        }else {}
-        complete_prices.insert(ticker, single_ticker_history);
-    }
 
 
-    let return_history = match stats::calculate_returns(portfolio_history, complete_prices, total_dividends) {
+        // should be moved to calc-returns
+
+        let euro_borsen = vec![".AS", ".DE", ".MC", ".PA", ".SW", ".MI", ".LS", ".AT", ".BE"];
+        
+
+        for (date, val) in single_ticker_history.iter_mut() {
+            let contains_any: bool = euro_borsen.iter().any(|&b| ticker.contains(b));
+            let mut temp_fx: &f64 = &0.0;
+        
+            if ticker.contains(".TO") {
+                temp_fx = fx_history
+                    .get("GBPCAD")
+                    .unwrap()
+                    .get(&date)
+                    .expect(&format!("couldn't get FX GBPCAD for {}", date));
+                *val = *val / temp_fx;
+            } else {
+                if contains_any {
+                    temp_fx = fx_history
+                        .get("GBPEUR")
+                        .unwrap()
+                        .get(&date)
+                        .expect(&format!("couldn't get FX GBPEUR for {}", date));
+                    *val = *val / temp_fx;
+                } else if ticker.contains(".L") {
+                    temp_fx = &1.0;
+                    *val = *val / (100.0*temp_fx);
+                } else {
+                    temp_fx = fx_history
+                        .get("GBPUSD")
+                        .unwrap()
+                        .get(&date)
+                        .expect(&format!("couldn't get FX GBPUSD for {}", date));
+                    *val = *val / temp_fx;
+                }
+            }
+        
+            *val = *val / temp_fx;
+        }
+        
+        complete_prices.insert(ticker, single_ticker_history); 
+    };
+
+    // PASS FX HISTORY HERE
+    let return_history = match stats::calculate_returns(portfolio_history, complete_prices, fx_history, total_dividends) {
         Some(v) => v,
         None => panic!("Calculating returns failed, check dividends arrived")
     };
@@ -191,7 +288,7 @@ fn main() {
     let years_held: f32 = (&days_held)/365.0;
     let months_held: i32 = ((&years_held*12.0) as i32) % 12;                                                                              // vvv this is incorrect
     println!("\n \n Found portfolio of {:.} years, {:.} months, and {:.} days.\n", years_held.floor(), months_held, days_held as i32 % 365 - 30*months_held);
-    println!("Current GBP/USD = {}", gbpusd);
+    // println!("Current GBP/USD = {}", );
 
 
 
@@ -260,7 +357,7 @@ fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
 }
 
 
-
+//fx adj should be here
 fn process_order(
     portfolio_t: &mut HashMap<String, (f64, f64)>,
     order: &Order,

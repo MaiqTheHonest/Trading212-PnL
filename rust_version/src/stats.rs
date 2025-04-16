@@ -6,9 +6,12 @@ const RISK_FREE_RATE: f32 = 0.03;
 const N_MARKET_DAYS: f32 = 252.0;
 pub const GBPUSD: f64 = 1.20;
 
+
+// fx adj should be here
 pub fn calculate_returns(
     portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)>,
     complete_prices: HashMap<String, HashMap<NaiveDate, f64>>,
+    fx_history: HashMap<&str, HashMap<NaiveDate, f64>>,
     total_dividends: f64
 
     ) -> Option<HashMap<NaiveDate, f64>> {
@@ -29,8 +32,8 @@ pub fn calculate_returns(
         if tupleobject.1.is_empty() == false{
             portfolio = tupleobject.clone().1;
         }else{}
-        for (_, (q_0, p_0)) in &portfolio {
-            volume_total += q_0*p_0;
+        for (ticker, (q_0, p_0)) in &portfolio {
+            volume_total += q_0*p_0; // weighting divs will be wrong without fx
         };
 
     };
@@ -73,7 +76,7 @@ pub fn calculate_returns(
 
         let daily_return = (100.0/value_total)*(sum_of_mid_returns + total_dividends*(volume_covered/volume_total));
 
-        // println!("{:?}, {:?}", date, daily_return);
+        println!("{:?}, return: {:?}, value_total: {:?}, fx: {:?}", date, daily_return, value_total, fx_history.get("GBPUSD").unwrap().get(&date).unwrap());
         return_history.insert(date, daily_return);    
     };
     
