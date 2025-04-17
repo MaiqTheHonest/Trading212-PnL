@@ -7,7 +7,7 @@ use std::fs;
 use chrono::DateTime;
 use serde::Deserialize;
 use std::{thread, time};
-use crate::stats::GBPUSD; // change this to dynamic FX
+
 
 
 #[tokio::main]

@@ -1,17 +1,16 @@
-use chrono::NaiveDate;
-use std::collections::HashMap;
+use chrono::{NaiveDate, Days};
+use std::{collections::HashMap, str::FromStr};
 
 
 const RISK_FREE_RATE: f32 = 0.03;
 const N_MARKET_DAYS: f32 = 252.0;
-pub const GBPUSD: f64 = 1.20;
+// pub const GBPUSD: f64 = 1.20;
 
 
 // fx adj should be here
 pub fn calculate_returns(
     portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)>,
     complete_prices: HashMap<String, HashMap<NaiveDate, f64>>,
-    fx_history: HashMap<&str, HashMap<NaiveDate, f64>>,
     total_dividends: f64
 
     ) -> Option<HashMap<NaiveDate, f64>> {
@@ -62,6 +61,10 @@ pub fn calculate_returns(
             if let Some(v) = single_history.get(&date) {        // if price_history doesn't contain this date, it was a weekend.
                 let p_1: f64 = *v;
                 let mid_return: f64 = p_0*q_0*(p_1/p_0 - 1.0);
+                if date == NaiveDate::from_str("2023-10-18").unwrap() {
+                    println!("{:?}", date);
+                    println!("{:?}", mid_return);
+                }
                 value_total += q_0*p_0;
                 sum_of_mid_returns += mid_return;
                 outer_holder_value = value_total;
@@ -76,7 +79,7 @@ pub fn calculate_returns(
 
         let daily_return = (100.0/value_total)*(sum_of_mid_returns + total_dividends*(volume_covered/volume_total));
 
-        println!("{:?}, return: {:?}, value_total: {:?}, fx: {:?}", date, daily_return, value_total, fx_history.get("GBPUSD").unwrap().get(&date).unwrap());
+        println!("{:?}, return: {:?}, volume_covered: {:?}, smr: {:?}", date, daily_return, volume_covered, sum_of_mid_returns);
         return_history.insert(date, daily_return);    
     };
     
@@ -99,12 +102,15 @@ pub fn hashmap_to_sorted_vec(hashmap: HashMap<NaiveDate, f64>) -> Vec<(NaiveDate
 
 
 
+
 pub fn strip_dates(return_history: Vec<(NaiveDate, f32)>) -> Vec<f32> {
 
     let (_, just_returns): (Vec<NaiveDate>, Vec<f32>) = return_history.into_iter().unzip();
 
     just_returns
 }
+
+
 
 
 pub fn get_daily_returns(mut just_returns: Vec<f32>) -> Vec<f32> {
@@ -122,6 +128,8 @@ pub fn get_daily_returns(mut just_returns: Vec<f32>) -> Vec<f32> {
 }
 
 
+
+
 pub fn mean_sd_sharpe(just_returns: &Vec<f32>) -> (f32, f32, f32){
     let len = just_returns.len() as f32;
     let blarg: f32 = just_returns.iter().map(|value| (value/100.0 + 1.0)).product::<f32>();
@@ -131,4 +139,22 @@ pub fn mean_sd_sharpe(just_returns: &Vec<f32>) -> (f32, f32, f32){
     let sharpe: f32 = (mean - daily_risk_free_rate)/(variance.sqrt());
 
     (mean, variance.sqrt(), sharpe)
+}
+
+
+
+
+pub fn interpolate_weekends(full_history: & mut HashMap<String, HashMap<NaiveDate, f64>>){
+        
+    for _ in 0..4{
+        for (_, single_element) in full_history.iter_mut() {
+            for (key, value) in single_element.clone() {
+                if let Some(next_day) = key.checked_add_days(Days::new(1)) {
+                    if !single_element.contains_key(&next_day) {
+                        single_element.insert(next_day, value);
+                    }
+                }
+            }
+        }
+    };
 }

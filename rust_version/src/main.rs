@@ -3,14 +3,14 @@ mod yahoo;
 mod stats;
 mod dividends; // redundant
 mod plotter;
-use chrono::{Days, Duration, NaiveDate, Utc};
+use chrono::{Duration, NaiveDate, Utc};
 // use serde::de::Error;
-use std::{collections::{hash_map::Entry, HashMap, BTreeMap}, error::Error, str::FromStr};
+use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
 use std::collections::HashSet;
 use crate::t212::Order;
 use std::io::stdin;
 use std::process::Command;
-use crate::stats::GBPUSD;
+
 
 fn main() {
 
@@ -19,6 +19,7 @@ fn main() {
         let _ = Command::new("chcp").arg("65001").status();
     }
 
+    let euro_borsen = vec![".AS", ".DE", ".MC", ".PA", ".SW", ".MI", ".LS", ".AT", ".BE"];
 
     let pre_dict_tickers = HashMap::from([       // exchange codes
         ("a", "AS"),
@@ -63,9 +64,14 @@ fn main() {
 
 
 
+
     // getting the fx rate history
-    let fx_list: Vec<&str> = vec!["GBPUSD", "GBPEUR", "GBPCAD"];
-    let mut fx_history: HashMap<&str, HashMap<NaiveDate, f64>> = HashMap::new();
+    let fx_list: Vec<String> = vec![
+        String::from("GBPUSD"), 
+        String::from("GBPEUR"), 
+        String::from("GBPCAD")];
+
+    let mut fx_history: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     for fx in fx_list {
         let temp_history: HashMap<NaiveDate, f64> = match yahoo::get_prices(format!("{}=X", fx).as_str(), start_date - Duration::days(2), end_date) {
@@ -76,45 +82,12 @@ fn main() {
 
     }
     // yahoo returns no prices for weekends, so I interpolate using Friday's fx rate
-
-    for _ in 0..3{
-        for (_, single_fx_history) in fx_history.iter_mut() {
-            for (key, value) in single_fx_history.clone() {
-                if let Some(next_day) = key.checked_add_days(Days::new(1)) {
-                    if !single_fx_history.contains_key(&next_day) {
-                        single_fx_history.insert(next_day, value);
-                    }
-                }
-            }
-        }
-    };
-    // let mut filled_map: BTreeMap<NaiveDate, &str, HashMap<NaiveDate, f64>> = BTreeMap::new();
-    // filled_map.extend(fx_history); // Start with the original values
-
-    // let keys: Vec<_> = filled_map.keys().cloned().collect();
-
-    // for pair in keys.windows(2) {
-    //     let start = pair[0];
-    //     let end = pair[1];
-
-    //     let value = filled_map.get(&start).cloned().unwrap();
-
-    //     let mut current = start.succ_opt().unwrap(); // start + 1 day
-
-    //     while current < end {
-    //         filled_map.entry(current).or_insert(value.clone());
-    //         current = current.succ_opt().unwrap();
-    //     }
-    // }
-
-    // for fx in fx_history.get("GBPUSD").unwrap().iter(){
-    //     println!("{:?}", fx);
-    // }
-// FX_HISTORY EXISTS
+    stats::interpolate_weekends(&mut fx_history);
 
 
 
 
+    
     // initialize portfolio history based on time_range
     let mut portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)> = time_range.clone()
     .into_iter()
@@ -138,19 +111,16 @@ fn main() {
 
         let matcher_date = NaiveDate::from_str(&order.dateCreated).expect("couldn't parse dateCreated: invalid date format");
 
-        // let gbpusd: &f64 = fx_history.get("GBPUSD").unwrap().get(&matcher_date).expect(&format!("couldn't get FX GBPUSD for {}", matcher_date));
+        // zero filledQuantity means it was a "value" order e.g. "buy £100 of AAPL" instead of "buy 0.5 AAPL at £200"
+        // so we need to translate value into quantities. "l_EQ" means a transaction on LSE so it is quoted in pennies
+        // and we multiply by 100
 
-        // dealing with edge cases: l_EQ means LSE transaction, which is quoted in pennies
-        // so we multiply by 100. Also where value transaction, we translate into quantities
-        if order.ticker.contains("l_EQ") {
-            order.fillPrice = order.fillPrice / 100.0;
-            // get order.datecreated's gbpusd from HashMap <FX>
-        }else{
-            // pass
-        }
         if order.filledQuantity == 0.0 {
-            order.filledQuantity = order.filledValue / order.fillPrice  
-
+            if order.ticker.contains("l_EQ"){
+            order.filledQuantity = order.filledValue / (order.fillPrice * 100.0)
+            } else {
+                order.filledQuantity = order.filledValue / order.fillPrice
+            }
         } else {
             // pass
         };
@@ -161,42 +131,8 @@ fn main() {
             pre_dict_tickers.clone(), 
             post_dict_tickers.clone());
 
-
-        
-        let euro_borsen = vec![".AS", ".DE", ".MC", ".PA", ".SW", ".MI", ".LS", ".AT", ".BE"];
-        let contains_any: bool = euro_borsen.iter().any(|&b| order.ticker.contains(b));
-
-        let mut temp_fx: &f64 = &0.0;
-        
-        if order.ticker.contains(".TO") {
-            temp_fx = fx_history
-                .get("GBPCAD")
-                .unwrap()
-                .get(&matcher_date)
-                .expect(&format!("couldn't get FX GBPCAD for {}", &matcher_date));
-            order.fillPrice = order.fillPrice / temp_fx;
-        } else {
-            if contains_any {
-                temp_fx = fx_history
-                    .get("GBPEUR")
-                    .unwrap()
-                    .get(&matcher_date)
-                    .expect(&format!("couldn't get FX GBPEUR for {}", &matcher_date));
-                order.fillPrice = order.fillPrice / temp_fx;
-            } else if order.ticker.contains(".L") {
-                // do nothing as it is already GBP and not USD or GBX;
-            } else {
-                temp_fx = fx_history
-                    .get("GBPUSD")
-                    .unwrap()
-                    .get(&matcher_date)
-                    .expect(&format!("couldn't get FX GBPUSD for {}", &matcher_date));
-                order.fillPrice = order.fillPrice / temp_fx;
-            }
-        };
-        // println!("{},{}", matcher_date, temp_fx);
-        // order = *val / temp_fx;
-    
+        // multiplying fill prices by respective fx rate
+        fx_adjust(&order.ticker, matcher_date, &mut order.fillPrice, &fx_history, &euro_borsen);
 
 
         // filtering out cancelled or rejected orders
@@ -208,21 +144,20 @@ fn main() {
         };
 
 
-
-
         // set portoflio history's element to a correct pair of {Date: portfolio_t}
         let index = time_range.iter().position(|&r| r == matcher_date).expect("time range has no such date");
         portfolio_history[index] = (matcher_date, portfolio_t.clone());
         
-    }
+    };
 
 
     
+
     let mut complete_prices: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     println!("\n ticker               lifetime:");
     
-    for (ticker, (date1, date2)) in ticker_history.into_iter() {
+    for (ticker, (date1, date2)) in ticker_history.into_iter()  {
         
         println!("{:?},from {:?} to {:?}", ticker, date1, date2);
         let mut single_ticker_history = match yahoo::get_prices(&ticker, date1, date2) {
@@ -231,51 +166,21 @@ fn main() {
         };
 
 
-        // should be moved to calc-returns
-
-        let euro_borsen = vec![".AS", ".DE", ".MC", ".PA", ".SW", ".MI", ".LS", ".AT", ".BE"];
-        
-
-        for (date, val) in single_ticker_history.iter_mut() {
-            let contains_any: bool = euro_borsen.iter().any(|&b| ticker.contains(b));
-            let mut temp_fx: &f64 = &0.0;
-        
-            if ticker.contains(".TO") {
-                temp_fx = fx_history
-                    .get("GBPCAD")
-                    .unwrap()
-                    .get(&date)
-                    .expect(&format!("couldn't get FX GBPCAD for {}", date));
-                *val = *val / temp_fx;
-            } else {
-                if contains_any {
-                    temp_fx = fx_history
-                        .get("GBPEUR")
-                        .unwrap()
-                        .get(&date)
-                        .expect(&format!("couldn't get FX GBPEUR for {}", date));
-                    *val = *val / temp_fx;
-                } else if ticker.contains(".L") {
-                    temp_fx = &1.0;
-                    *val = *val / (100.0*temp_fx);
-                } else {
-                    temp_fx = fx_history
-                        .get("GBPUSD")
-                        .unwrap()
-                        .get(&date)
-                        .expect(&format!("couldn't get FX GBPUSD for {}", date));
-                    *val = *val / temp_fx;
-                }
-            }
-        
-            *val = *val / temp_fx;
+        // multiplying yahoo prices by respective fx rate
+        for (date, price) in single_ticker_history.iter_mut() {
+            fx_adjust(&ticker, *date, price, &fx_history, &euro_borsen);
         }
         
         complete_prices.insert(ticker, single_ticker_history); 
     };
 
-    // PASS FX HISTORY HERE
-    let return_history = match stats::calculate_returns(portfolio_history, complete_prices, fx_history, total_dividends) {
+    // fill in missing weekend prices using Friday prices
+    stats::interpolate_weekends(&mut complete_prices);
+
+
+
+    
+    let return_history = match stats::calculate_returns(portfolio_history, complete_prices, total_dividends) {
         Some(v) => v,
         None => panic!("Calculating returns failed, check dividends arrived")
     };
@@ -288,7 +193,8 @@ fn main() {
     let years_held: f32 = (&days_held)/365.0;
     let months_held: i32 = ((&years_held*12.0) as i32) % 12;                                                                              // vvv this is incorrect
     println!("\n \n Found portfolio of {:.} years, {:.} months, and {:.} days.\n", years_held.floor(), months_held, days_held as i32 % 365 - 30*months_held);
-    // println!("Current GBP/USD = {}", );
+    println!("Current GBP/USD = {:?}", fx_history.get("GBPUSD").unwrap().iter().last());
+    println!("Current GBP/EUR = {:?}", fx_history.get("GBPEUR").unwrap().iter().last());
 
 
 
@@ -454,3 +360,39 @@ fn convert_to_yahoo_ticker(
 }
     
 
+
+
+
+// finds the correct currency using ticker name and borse list, then fetches it from fx_history and multiplies by it
+fn fx_adjust(ticker: &String, matcher_date: NaiveDate, price: &mut f64, fx_history: &HashMap<String, HashMap<NaiveDate, f64>>, euro_borsen: &Vec<&str>) {
+                
+    let contains_any: bool = euro_borsen.iter().any(|&b| ticker.contains(b));
+
+    if ticker.contains(".TO") {
+        let temp_fx = fx_history
+            .get("GBPCAD")
+            .unwrap()
+            .get(&matcher_date)
+            .expect(&format!("couldn't get FX GBPCAD for {}", &matcher_date));
+        *price = *price / temp_fx;
+    } else {
+        if contains_any {
+            let temp_fx = fx_history
+                .get("GBPEUR")
+                .unwrap()
+                .get(&matcher_date)
+                .expect(&format!("couldn't get FX GBPEUR for {}", &matcher_date));
+            *price = *price / temp_fx;
+        } else if ticker.contains(".L") {
+            *price = *price / 100.0
+            // do nothing as it is already GBP and not other currency or GBX;
+        } else {
+            let temp_fx = fx_history
+                .get("GBPUSD")
+                .unwrap()
+                .get(&matcher_date)
+                .expect(&format!("couldn't get FX GBPUSD for {}", &matcher_date));
+            *price = *price / temp_fx;
+        }
+    };
+}
