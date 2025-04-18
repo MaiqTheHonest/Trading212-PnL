@@ -193,8 +193,8 @@ fn main() {
     let years_held: f32 = (&days_held)/365.0;
     let months_held: i32 = ((&years_held*12.0) as i32) % 12;                                                                              // vvv this is incorrect
     println!("\n \n Found portfolio of {:.} years, {:.} months, and {:.} days.\n", years_held.floor(), months_held, days_held as i32 % 365 - 30*months_held);
-    println!("Current GBP/USD = {:?}", fx_history.get("GBPUSD").unwrap().iter().last());
-    println!("Current GBP/EUR = {:?}", fx_history.get("GBPEUR").unwrap().iter().last());
+    // println!("Current GBP/USD = {:?}", fx_history.get("GBPUSD").unwrap().iter().last().unwrap());
+    // println!("Current GBP/EUR = {:?}", fx_history.get("GBPEUR").unwrap().iter().last().unwrap());
 
 
 

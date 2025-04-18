@@ -61,10 +61,7 @@ pub fn calculate_returns(
             if let Some(v) = single_history.get(&date) {        // if price_history doesn't contain this date, it was a weekend.
                 let p_1: f64 = *v;
                 let mid_return: f64 = p_0*q_0*(p_1/p_0 - 1.0);
-                if date == NaiveDate::from_str("2023-10-18").unwrap() {
-                    println!("{:?}", date);
-                    println!("{:?}", mid_return);
-                }
+
                 value_total += q_0*p_0;
                 sum_of_mid_returns += mid_return;
                 outer_holder_value = value_total;
@@ -79,7 +76,7 @@ pub fn calculate_returns(
 
         let daily_return = (100.0/value_total)*(sum_of_mid_returns + total_dividends*(volume_covered/volume_total));
 
-        println!("{:?}, return: {:?}, volume_covered: {:?}, smr: {:?}", date, daily_return, volume_covered, sum_of_mid_returns);
+
         return_history.insert(date, daily_return);    
     };
     
