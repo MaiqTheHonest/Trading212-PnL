@@ -157,7 +157,7 @@ fn main() {
 
     println!("\n ticker               lifetime:");
     
-    for (ticker, (date1, date2)) in ticker_history.into_iter()  {
+    for (ticker, (date1, date2)) in ticker_history.into_iter()  {   // conversion is fine since order does not matter for price lookup
         
         println!("{:?},from {:?} to {:?}", ticker, date1, date2);
         let mut single_ticker_history = match yahoo::get_prices(&ticker, date1, date2) {
@@ -167,7 +167,7 @@ fn main() {
 
 
         // multiplying yahoo prices by respective fx rate
-        for (date, price) in single_ticker_history.iter_mut() {
+        for (date, price) in single_ticker_history.iter_mut() {  // arbitrary order of iteration, but lookup in fx is still via keys so no problem
             fx_adjust(&ticker, *date, price, &fx_history, &euro_borsen);
         }
         
@@ -178,8 +178,8 @@ fn main() {
     stats::interpolate_weekends(&mut complete_prices);
 
 
-
-    
+    // portfolio_history is "sparse", so days where it wasn't changed are empty
+    // calculate_returns will just infer that empty day portfolio is same as last modified day's one
     let return_history = match stats::calculate_returns(portfolio_history, complete_prices, total_dividends) {
         Some(v) => v,
         None => panic!("Calculating returns failed, check dividends arrived")
@@ -193,8 +193,7 @@ fn main() {
     let years_held: f32 = (&days_held)/365.0;
     let months_held: i32 = ((&years_held*12.0) as i32) % 12;                                                                              // vvv this is incorrect
     println!("\n \n Found portfolio of {:.} years, {:.} months, and {:.} days.\n", years_held.floor(), months_held, days_held as i32 % 365 - 30*months_held);
-    // println!("Current GBP/USD = {:?}", fx_history.get("GBPUSD").unwrap().iter().last().unwrap());
-    // println!("Current GBP/EUR = {:?}", fx_history.get("GBPEUR").unwrap().iter().last().unwrap());
+
 
 
 
@@ -205,7 +204,6 @@ fn main() {
     // shadowing
     let return_history: Vec<(NaiveDate, f32)> = stats::hashmap_to_sorted_vec(return_history);
     let just_returns: Vec<f32> = stats::strip_dates(return_history);
-    
     
     
     let current_return = &just_returns.last().unwrap();
@@ -248,8 +246,7 @@ fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
 
     let mut start_date = NaiveDate::parse_from_str(&root_date, "%Y-%m-%d")?;
 
-    // let term_date = data.last().ok_or("couldn't get last order")?.dateCreated.as_str();   
-    // let end_date = NaiveDate::parse_from_str(&term_date, "%Y-%m-%d")?;
+
     let end_date = Utc::now().date_naive();
 
     let mut time_range = Vec::new();
@@ -277,6 +274,9 @@ fn process_order(
 
     match portfolio_t.entry(order.ticker.clone()) {
         Entry::Occupied(mut occupied) => {
+            if ticker == String::from("NG.L") {
+                println!("NATIONAL GRID SPOTTED in OCC");
+            }
             let (q_0, p_0) = occupied.get_mut();
 
             if *q_0 + q_1 == 0.0 {                                              // if sold everything
@@ -285,7 +285,7 @@ fn process_order(
                 let (keeps_date, _) = ticker_history.get(&ticker).unwrap();
                 ticker_history.insert(ticker, (*keeps_date, date));
             } else {
-                if q_1 >= 0.0 {                                                // if bought some
+                if q_1 >= 0.0 {                                                // if bought some *more*
                     *p_0 = (*q_0* *p_0 + q_1*p_1)/(*q_0 + q_1);
                     *q_0 += q_1;
 
@@ -301,9 +301,14 @@ fn process_order(
                     };
         };
     },
-        Entry::Vacant(vacant) => {
+        Entry::Vacant(vacant) => {                                            // if bought some
+
+            
             vacant.insert((q_1, p_1));
-            ticker_history.insert(ticker.clone(), (date, last_date));
+
+            ticker_history.entry(ticker.clone())
+            .and_modify(|e| e.1 = last_date.clone())
+            .or_insert((date.clone(), last_date.clone()));
         },
     };
 }      // returns nothing, just amends portfolio_t and ticker_history in-place
@@ -396,3 +401,27 @@ fn fx_adjust(ticker: &String, matcher_date: NaiveDate, price: &mut f64, fx_histo
         }
     };
 }
+
+
+
+fn sort_the_hash(a: HashMap<&str, i8>){
+
+    let a_sorted = a.into_iter();
+    println!("{:?}", a_sorted)
+}
+
+#[test]
+fn main_test(){
+    
+    
+    for _ in 0..10 {
+        let a = HashMap::from([("A", 1),
+        ("B", 2),
+        ("C", 3)]);
+        println!("{:?}", a);
+        // sort_the_hash(a.clone());
+        
+    }
+}
+
+

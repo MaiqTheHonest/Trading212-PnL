@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, Days};
+use chrono::{Datelike, Days, NaiveDate};
 use std::{collections::HashMap, str::FromStr};
 
 
@@ -21,8 +21,7 @@ pub fn calculate_returns(
 
     let mut volume_total: f64 = 0.0;
     let mut volume_covered: f64 = 0.0;
-    let mut outer_holder_value: f64 = 0.0;
-    let mut outer_holder_sum: f64 = 0.0;
+
 
 
     // this first loop is to calculate total volume
@@ -41,7 +40,9 @@ pub fn calculate_returns(
     // this second loop calculates daily returns by weighting dividends against total volume
     for tupleobject in portfolio_history {
 
-        let mut value_total: f64 = 0.0;
+        //let mut outer_holder_value: f64 = 0.0;
+        //let mut outer_holder_sum: f64 = 0.0;
+
         let mut sum_of_mid_returns: f64 = 0.0;
 
         let date: NaiveDate = tupleobject.0;
@@ -53,29 +54,50 @@ pub fn calculate_returns(
         };
 
         // if found, value is value and mid return is mid return
-        
+        let mut market_val: f64 = 0.0;
+        let mut cost_basis: f64 = 0.0;
+
         for (ticker, (q_0, p_0)) in &portfolio {
 
             let single_history = complete_prices.get(ticker)?;
 
+
+
+
             if let Some(v) = single_history.get(&date) {        // if price_history doesn't contain this date, it was a weekend.
                 let p_1: f64 = *v;
                 let mid_return: f64 = p_0*q_0*(p_1/p_0 - 1.0);
+                market_val += p_1*q_0;
+                // if date.year() == 2023 && date.month() == 10 && (date.day() == 17 || date.day() == 16 || date.day() == 18){
 
-                value_total += q_0*p_0;
+                //     println!("date: {:?}, ticker: {}, p0: {:?}, p1: {:?}", date, ticker, p_0, p_1);
+                // } else {};
+                cost_basis += q_0*p_0;
                 sum_of_mid_returns += mid_return;
-                outer_holder_value = value_total;
-                outer_holder_sum = sum_of_mid_returns;
-            } else {value_total = outer_holder_value.clone();
-                    sum_of_mid_returns = outer_holder_sum.clone();
+                //outer_holder_value = cost_basis;
+                //outer_holder_sum = sum_of_mid_returns;
+                if date.year() == 2025 && date.month() == 04 && date.day() == 22 { //&& (date.day() == 17 || date.day() == 16 || date.day() == 18){
+
+                    println!("ticker: {:?}, price: {:?}, cost_basis: {:?}, market_val: {:?}, divs: {:?}", ticker, p_1, cost_basis, market_val, total_dividends);
+                } else {};
+            } else {//cost_basis = outer_holder_value.clone();
+                    //sum_of_mid_returns = outer_holder_sum.clone();
+                    //println!("ERROR: historical price not found for ticker {:?} on date {:?}", ticker, date)
                     };
+
 
         };
 
-        volume_covered += value_total;
+        volume_covered += cost_basis;
 
-        let daily_return = (100.0/value_total)*(sum_of_mid_returns + total_dividends*(volume_covered/volume_total));
+        let daily_return = (100.0/cost_basis)*(sum_of_mid_returns + total_dividends*(volume_covered/volume_total));
 
+        // println!("date: {:?}, Cvol: {:?}, Tvol: {:?}, return: {:?}, cost_base: {:?}, market_val: {:?}", date, volume_covered, volume_total, daily_return, cost_basis, market_val);
+
+        if date.year() == 2025 && date.month() == 04 && date.day() == 22 { //&& (date.day() == 17 || date.day() == 16 || date.day() == 18){
+
+            println!("portfolio: {:?}", portfolio);
+        } else {};
 
         return_history.insert(date, daily_return);    
     };
@@ -143,7 +165,7 @@ pub fn mean_sd_sharpe(just_returns: &Vec<f32>) -> (f32, f32, f32){
 
 pub fn interpolate_weekends(full_history: & mut HashMap<String, HashMap<NaiveDate, f64>>){
         
-    for _ in 0..4{
+    for _ in 0..5{
         for (_, single_element) in full_history.iter_mut() {
             for (key, value) in single_element.clone() {
                 if let Some(next_day) = key.checked_add_days(Days::new(1)) {
@@ -153,5 +175,5 @@ pub fn interpolate_weekends(full_history: & mut HashMap<String, HashMap<NaiveDat
                 }
             }
         }
-    };
+    }
 }
