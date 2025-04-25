@@ -57,7 +57,7 @@ struct Items {
 
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Order {                                            // both the struct and fields have to be public to be accessed in main
     pub id: u64,
     pub ticker: String,

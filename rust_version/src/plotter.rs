@@ -4,20 +4,31 @@ use chrono::{Duration, NaiveDate};
 use std::collections::HashMap;
 
 
-pub fn display_to_console(data_to_plot: &HashMap<NaiveDate, f64>, start_date: NaiveDate, end_date: NaiveDate) {
+pub fn display_to_console(
+    data_to_plot_1: &Vec<(NaiveDate, f32)>,
+    data_to_plot_2: Vec<f32>,
+    start_date: NaiveDate,
+    end_date: NaiveDate) {
 
 
-    // let mut data_to_plot: HashMap<NaiveDate, f64> = HashMap::new();
 
-    let mut points: Vec<(f32, f32)> = data_to_plot
+    let mut points: Vec<(f32, f32)> = data_to_plot_1
         .iter()
-        .map(|(&date, &value)| {
-            let day_number = (date - start_date).num_days() as f32; 
-            (day_number, value as f32)
+        .map(|(date, value)| {
+            let day_number = (*date - start_date).num_days() as f32; 
+            (day_number, (value + 0.0* (day_number as f32) / (data_to_plot_1.len() as f32)) as f32)
         })
         .collect();
     points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     
+
+    
+    let mut points_2: Vec<(f32, f32)> = Vec::new();
+    for (index, value) in data_to_plot_2.iter().enumerate() {
+        points_2.push((index as f32, *value))
+    }
+    points_2.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
 
     let y_returns: Vec<f32> = points.iter().map(|(_, y)| *y).collect();    // mind the deref
 
@@ -38,6 +49,7 @@ pub fn display_to_console(data_to_plot: &HashMap<NaiveDate, f64>, start_date: Na
 
 
     Chart::new_with_y_range(300, 200, points.last().unwrap().0/-25.0, points.last().unwrap().0/1.0, myround(ymin, 5.0)-10.0, myround(ymax, 5.0)+10.0)
+        .linecolorplot(&Shape::Lines(&points_2), RGB8::new(254, 0, 0))
         .linecolorplot(&Shape::Lines(&points), RGB8::new(254, 245, 116))
         .x_label_format(LabelFormat::Custom(Box::new(move |val| {
             if val <= 1.0 { format!("  {}                                                            {}", start_date.to_string(), mid_date.to_string()) } 

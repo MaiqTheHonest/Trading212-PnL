@@ -4,11 +4,11 @@ use std::{collections::HashMap, str::FromStr};
 
 const RISK_FREE_RATE: f32 = 0.03;
 const N_MARKET_DAYS: f32 = 252.0;
-// pub const GBPUSD: f64 = 1.20;
 
 
-// fx adj should be here
-pub fn calculate_returns(
+
+// unrealized, non-TWR, non-MWR
+pub fn calc_unreal_returns(
     portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)>,
     complete_prices: HashMap<String, HashMap<NaiveDate, f64>>,
     total_dividends: f64
@@ -17,11 +17,10 @@ pub fn calculate_returns(
 
     let mut return_history: HashMap<NaiveDate, f64> = HashMap::new();
     let mut portfolio = portfolio_history[0].1.clone();
-    // println!("{:?}", portfolio_history);
+    // let mut cb_mv_history ^^^^ identical to return_hist
 
     let mut volume_total: f64 = 0.0;
     let mut volume_covered: f64 = 0.0;
-
 
 
     // this first loop is to calculate total volume
@@ -31,7 +30,7 @@ pub fn calculate_returns(
             portfolio = tupleobject.clone().1;
         }else{}
         for (ticker, (q_0, p_0)) in &portfolio {
-            volume_total += q_0*p_0; // weighting divs will be wrong without fx
+            volume_total += q_0*p_0;
         };
 
     };
@@ -40,10 +39,7 @@ pub fn calculate_returns(
     // this second loop calculates daily returns by weighting dividends against total volume
     for tupleobject in portfolio_history {
 
-        //let mut outer_holder_value: f64 = 0.0;
-        //let mut outer_holder_sum: f64 = 0.0;
-
-        let mut sum_of_mid_returns: f64 = 0.0;
+        let mut sum_of_abs_returns: f64 = 0.0;
 
         let date: NaiveDate = tupleobject.0;
 
@@ -53,71 +49,53 @@ pub fn calculate_returns(
           // pass, portfolio remains same as 1 day (iteration) before  
         };
 
-        // if found, value is value and mid return is mid return
+
         let mut market_val: f64 = 0.0;
         let mut cost_basis: f64 = 0.0;
 
         for (ticker, (q_0, p_0)) in &portfolio {
 
-            let single_history = complete_prices.get(ticker)?;
+            let single_history = complete_prices.get(ticker)?; // get price history for ticker
 
 
-
-
-            if let Some(v) = single_history.get(&date) {        // if price_history doesn't contain this date, it was a weekend.
+            if let Some(v) = single_history.get(&date) {      // get specific day from that price history
                 let p_1: f64 = *v;
-                let mid_return: f64 = p_0*q_0*(p_1/p_0 - 1.0);
+
                 market_val += p_1*q_0;
-                // if date.year() == 2023 && date.month() == 10 && (date.day() == 17 || date.day() == 16 || date.day() == 18){
-
-                //     println!("date: {:?}, ticker: {}, p0: {:?}, p1: {:?}", date, ticker, p_0, p_1);
-                // } else {};
                 cost_basis += q_0*p_0;
-                sum_of_mid_returns += mid_return;
-                //outer_holder_value = cost_basis;
-                //outer_holder_sum = sum_of_mid_returns;
-                if date.year() == 2025 && date.month() == 04 && date.day() == 22 { //&& (date.day() == 17 || date.day() == 16 || date.day() == 18){
+                
+                let abs_return: f64 = p_0*q_0*(p_1/p_0 - 1.0);
+                sum_of_abs_returns += abs_return;
 
-                    println!("ticker: {:?}, price: {:?}, cost_basis: {:?}, market_val: {:?}, divs: {:?}", ticker, p_1, cost_basis, market_val, total_dividends);
-                } else {};
-            } else {//cost_basis = outer_holder_value.clone();
-                    //sum_of_mid_returns = outer_holder_sum.clone();
-                    //println!("ERROR: historical price not found for ticker {:?} on date {:?}", ticker, date)
-                    };
-
-
+            } else {
+                //println!("ERROR: historical price not found for ticker {:?} on date {:?}", ticker, date)
+                };
         };
 
         volume_covered += cost_basis;
 
-        let daily_return = (100.0/cost_basis)*(sum_of_mid_returns + total_dividends*(volume_covered/volume_total));
+        let daily_return = (100.0/cost_basis)*(sum_of_abs_returns + total_dividends*(volume_covered/volume_total));
 
-        // println!("date: {:?}, Cvol: {:?}, Tvol: {:?}, return: {:?}, cost_base: {:?}, market_val: {:?}", date, volume_covered, volume_total, daily_return, cost_basis, market_val);
-
-        if date.year() == 2025 && date.month() == 04 && date.day() == 22 { //&& (date.day() == 17 || date.day() == 16 || date.day() == 18){
-
-            println!("portfolio: {:?}", portfolio);
-        } else {};
-
-        return_history.insert(date, daily_return);    
+        return_history.insert(date, daily_return);
+        //cb_mv_history.insert(date, (cost_basis,market_val))    
     };
     
-
     Some(return_history)
 } 
 
 
 
 
-pub fn hashmap_to_sorted_vec(hashmap: HashMap<NaiveDate, f64>) -> Vec<(NaiveDate, f32)> {
-    let mut vec: Vec<(NaiveDate, f32)> = hashmap.into_iter()
-        .map(|(date, value)| (date, value as f32))    // mind the conversion
-        .collect();
+
+pub fn hashmap_to_sorted_vec<T>(hashmap: HashMap<NaiveDate, T>) -> Vec<(NaiveDate, T)> {
+    
+    let mut vec: Vec<(NaiveDate, T)> = hashmap.into_iter().collect();
     
     vec.sort_by_key(|(date, _)| *date);               // sort by naivedate
     
     vec
 }
+
 
 
 
@@ -128,6 +106,27 @@ pub fn strip_dates(return_history: Vec<(NaiveDate, f32)>) -> Vec<f32> {
 
     just_returns
 }
+
+
+
+
+
+pub fn interpolate<T: Clone>(history: &mut Vec<(NaiveDate, T)>) {
+    let mut i = 0;
+
+    while i + 1 < history.len() {
+        let current_date = history[i].0; 
+        let next_date = current_date.checked_add_days(Days::new(1)).unwrap();
+
+        if next_date != history[i + 1].0 {
+            let cloned_value = history[i].1.clone();
+            history.insert(i + 1, (next_date, cloned_value));
+        } else {
+            i += 1;
+        }
+    }
+}
+
 
 
 
@@ -176,4 +175,51 @@ pub fn interpolate_weekends(full_history: & mut HashMap<String, HashMap<NaiveDat
             }
         }
     }
+}
+
+
+
+
+
+// finds the correct currency using ticker name and borse list, then fetches it from fx_history and multiplies by it
+pub fn fx_adjust(ticker: &String, matcher_date: NaiveDate, price: &mut f64, fx_history: &HashMap<String, HashMap<NaiveDate, f64>>) {
+    
+    let euro_borsen = vec![".AS", ".DE", ".MC", ".PA", ".SW", ".MI", ".LS", ".AT", ".BE"]; 
+
+    let contains_any: bool = euro_borsen.iter().any(|&b| ticker.contains(b));
+
+    if ticker.contains(".TO") {
+        let temp_fx = fx_history
+            .get("GBPCAD")
+            .unwrap()
+            .get(&matcher_date)
+            .expect(&format!("couldn't get FX GBPCAD for {}", &matcher_date));
+        *price = *price / temp_fx;
+    } else {
+        if contains_any {
+            let temp_fx = fx_history
+                .get("GBPEUR")
+                .unwrap()
+                .get(&matcher_date)
+                .expect(&format!("couldn't get FX GBPEUR for {}", &matcher_date));
+            *price = *price / temp_fx;
+        } else if ticker.contains(".L") {
+            *price = *price / 100.0
+            // do nothing as it is already GBP and not other currency or GBX;
+        } else {
+            let temp_fx = fx_history
+                .get("GBPUSD")
+                .unwrap()
+                .get(&matcher_date)
+                .expect(&format!("couldn't get FX GBPUSD for {}", &matcher_date));
+            *price = *price / temp_fx;
+        }
+    };
+}
+
+
+
+
+pub fn mwrr(return_history: Vec<(NaiveDate, f32)>){
+    //
 }
