@@ -3,12 +3,12 @@ mod yahoo;
 mod stats;
 mod dividends;
 mod plotter;
+use rgb::RGB8;
 use chrono::{Duration, NaiveDate, Utc};
-// use serde::de::Error;
 use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
 use std::collections::HashSet;
 use crate::t212::Order;
-use std::io::stdin;
+use std::io;
 use std::process::Command;
 
 
@@ -161,8 +161,8 @@ fn main() {
     // UNREALISED RETURNS ######################################
     // portfolio_history is "sparse", so days where it wasn't changed are empty
     // calculate_returns will just infer that empty day portfolio is same as last modified day's one
-    let return_history = match stats::calc_unreal_returns(portfolio_history, complete_prices, total_dividends) {
-        Some(v) => v,
+    let (return_history, cb_mv_history) = match stats::calc_unreal_returns(portfolio_history, complete_prices, total_dividends) {
+        Some((v, b)) => (v,b),
         None => panic!("Calculating returns failed, check dividends arrived")
     };
 
@@ -171,12 +171,20 @@ fn main() {
     .into_iter()
     .map(|(date, val)| (date, val as f32))  // convert to f32 for plotters module
     .collect();
+
+    // irrelevant atm: benchmark and absolute cb and mv for beta and other stats to add in the future
+    let cb_mv_history: Vec<(NaiveDate, (f64, f64))> = stats::hashmap_to_sorted_vec(cb_mv_history);
+    let (_, _cb_mv_history): (Vec<_>, Vec<(f64, f64)>) = cb_mv_history.into_iter().unzip();
+    let snp_prices: HashMap<NaiveDate, f64> = yahoo::get_prices("^GSPC", start_date, end_date).expect("couldnt get snp");
+    let mut snp_prices = stats::hashmap_to_sorted_vec(snp_prices);
+    stats::interpolate(&mut snp_prices);
+    let _snp_returns = stats::calculate_benchmark_returns(snp_prices);
     //##########################################################
 
 
 
 
-    
+
     // REALISED RETURNS #######################################
     let mut real_returns: Vec<(NaiveDate, (f64, f64))> = stats::hashmap_to_sorted_vec(real_returns)
     .into_iter()
@@ -187,13 +195,19 @@ fn main() {
     })
     .collect();
 
-    real_returns.push((end_date, real_returns.last().unwrap().1)); // stretch returns to today
+    let temp = match real_returns.last() {
+        Some(v) => v,
+        None => &(end_date, (0.0, 0.0))
+    };
+
+    real_returns.push((end_date, temp.1)); // stretch returns to today
     real_returns.insert(0, (start_date, (0.0001, 0.0001)));              // stretch returns to root day
     stats::interpolate(&mut real_returns);                         // stretch to correspond to # of days
+    let real_returns_abs: Vec<(NaiveDate, f32)> = real_returns.clone().into_iter().map(|(date, (cb, mv))|(date, ((mv - cb) as f32))).collect();
 
     // switches tuple (market val, cost basis) into single (real_return)
-    let real_returns: Vec<(NaiveDate, f32)> = real_returns.into_iter().map(|(date, (cb, mv))|(date, ((mv/cb - 1.0)*100.0) as f32)).collect();
-    let just_real_returns: Vec<f32> = stats::strip_dates(real_returns.clone());
+    let real_returns_rel: Vec<(NaiveDate, f32)> = real_returns.clone().into_iter().map(|(date, (cb, mv))|(date, ((mv/cb - 1.0)*100.0) as f32)).collect();
+    let _just_real_returns: Vec<f32> = stats::strip_dates(real_returns_rel.clone());
     // ########################################################
 
 
@@ -212,7 +226,8 @@ fn main() {
         let _ = Command::new("chcp").arg("65001").status();
     }
 
-    plotter::display_to_console(&return_history, just_real_returns, start_date, end_date);
+    println!("\nUnrealized return, %");
+    plotter::display_to_console(&return_history, start_date, end_date, 70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
 
     let just_returns: Vec<f32> = stats::strip_dates(return_history);
 
@@ -220,23 +235,42 @@ fn main() {
     let annual_return = ((*current_return/100.0 + 1.0).powf(1.0/(&years_held)) - 1.0) * 100.0;
     let daily_returns: Vec<f32> = stats::get_daily_returns(just_returns.clone());
     let (mean, sd, sharpe) = stats::mean_sd_sharpe(&daily_returns);
-    
-    println!("                    _________________________________________");
-    println!("                   |                       |                 |");
-    println!("                   | {0: <21} | {1: <15.4} | ", "unrealised PnL(%)", current_return);
-    println!("                   |                       |                 |");
-    println!("                   | {0: <21} | {1: <15.4} | ", "APR(%)", annual_return);
-    println!("                   |                       |                 |");
-    println!("                   | {0: <21} | {1: <15.4} | ", "std. deviation", sd);
-    println!("                   |                       |                 |");
-    println!("                   | {0: <21} | {1: <15.4} | ", "Sharpe ratio", sharpe);
-    println!("                   |                       |                 |");
-    println!("                   | {0: <21} | {1: <15.4} | ", "daily avg. return(%)", mean);
-    println!("                   |                       |                 |");
-    println!("                    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");
 
-    println!("Press any key to exit...");
-    stdin().read_line(&mut String::new()).unwrap();
+    // println!("Press any key to exit...");
+    // stdin().read_line(&mut String::new()).unwrap();
+    println!("/s      view portfolio statistics");
+    println!("/r      view realized returns");
+    println!("/q      quit");
+
+    loop {
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        let command = input.trim().trim();
+
+        match command {
+            "/s" => {
+                println!(" _________________________________________");
+                println!("|                       |                 |");
+                println!("| {0: <21} | {1: <15.4} | ", "unrealised PnL(%)", current_return);
+                println!("|                       |                 |");
+                println!("| {0: <21} | {1: <15.4} | ", "APR(%)", annual_return);
+                println!("|                       |                 |");
+                println!("| {0: <21} | {1: <15.4} | ", "std. deviation", sd);
+                println!("|                       |                 |");
+                println!("| {0: <21} | {1: <15.4} | ", "Sharpe ratio", sharpe);
+                println!("|                       |                 |");
+                println!("| {0: <21} | {1: <15.4} | ", "daily avg. return(%)", mean);
+                println!("|                       |                 |");
+                println!(" ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");            
+            },
+            "/r" => {println!("\nAbsolute realized return, GBP");
+                plotter::display_to_console(&real_returns_abs, start_date, end_date, 40, RGB8::new(255, 51, 255), String::from_str(" GBP").unwrap())},
+            "/q" => {println!("Quitting...");
+            break},
+            "" => println!("Enter valid command or /q to quit."),
+            _ => println!("Unknown command: {}", command),
+        }
+    }
 }
 // ########################################################
 

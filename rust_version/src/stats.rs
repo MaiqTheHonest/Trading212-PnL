@@ -1,5 +1,5 @@
-use chrono::{Datelike, Days, NaiveDate};
-use std::{collections::HashMap, str::FromStr};
+use chrono::{Days, NaiveDate};
+use std::collections::HashMap;
 
 
 const RISK_FREE_RATE: f32 = 0.03;
@@ -13,11 +13,11 @@ pub fn calc_unreal_returns(
     complete_prices: HashMap<String, HashMap<NaiveDate, f64>>,
     total_dividends: f64
 
-    ) -> Option<HashMap<NaiveDate, f64>> {
+    ) -> Option<(HashMap<NaiveDate, f64>, HashMap<NaiveDate, (f64, f64)>)> {
 
     let mut return_history: HashMap<NaiveDate, f64> = HashMap::new();
     let mut portfolio = portfolio_history[0].1.clone();
-    // let mut cb_mv_history ^^^^ identical to return_hist
+    let mut cb_mv_history: HashMap<NaiveDate, (f64, f64)> = HashMap::new();
 
     let mut volume_total: f64 = 0.0;
     let mut volume_covered: f64 = 0.0;
@@ -77,10 +77,10 @@ pub fn calc_unreal_returns(
         let daily_return = (100.0/cost_basis)*(sum_of_abs_returns + total_dividends*(volume_covered/volume_total));
 
         return_history.insert(date, daily_return);
-        //cb_mv_history.insert(date, (cost_basis,market_val))    
+        cb_mv_history.insert(date, (cost_basis, market_val));    
     };
     
-    Some(return_history)
+    Some((return_history, cb_mv_history))
 } 
 
 
@@ -218,8 +218,30 @@ pub fn fx_adjust(ticker: &String, matcher_date: NaiveDate, price: &mut f64, fx_h
 }
 
 
+pub fn calculate_benchmark_returns(bench_returns: Vec<(NaiveDate, f64)>) -> Vec<f32>{
+    let mut returns = Vec::new();
+
+    for i in 1..bench_returns.len() {
+        let price_today = bench_returns[i].1;
+        let initial_price = bench_returns[0].1;
+
+        let return_today = ((price_today / initial_price) - 1.0) * 100.0;
+        
+        returns.push(return_today as f32);
+    }
+    returns
+}
 
 
-pub fn mwrr(return_history: Vec<(NaiveDate, f32)>){
-    //
+
+
+
+pub fn covariance(just_returns: &Vec<f32>, bench_returns: &Vec<f32>, mean: f32, mean_bench: f32) -> f32 {
+  
+    let n = just_returns.len() as f32;
+
+    just_returns.iter()
+        .zip(bench_returns.iter())
+        .map(|(r_p, r_b)| (r_p - mean) * (r_b - mean_bench))
+        .sum::<f32>() / n
 }

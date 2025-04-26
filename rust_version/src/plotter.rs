@@ -1,14 +1,16 @@
 use rgb::RGB8;
 use textplots::{Chart, ColorPlot, LabelBuilder, LabelFormat, Shape, TickDisplay, TickDisplayBuilder};
 use chrono::{Duration, NaiveDate};
-use std::collections::HashMap;
+
 
 
 pub fn display_to_console(
     data_to_plot_1: &Vec<(NaiveDate, f32)>,
-    data_to_plot_2: Vec<f32>,
     start_date: NaiveDate,
-    end_date: NaiveDate) {
+    end_date: NaiveDate,
+    size: u32,
+    colour: RGB8,
+    units: String) {
 
 
 
@@ -21,13 +23,6 @@ pub fn display_to_console(
         .collect();
     points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     
-
-    
-    let mut points_2: Vec<(f32, f32)> = Vec::new();
-    for (index, value) in data_to_plot_2.iter().enumerate() {
-        points_2.push((index as f32, *value))
-    }
-    points_2.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
 
     let y_returns: Vec<f32> = points.iter().map(|(_, y)| *y).collect();    // mind the deref
@@ -48,16 +43,15 @@ pub fn display_to_console(
     
 
 
-    Chart::new_with_y_range(300, 200, points.last().unwrap().0/-25.0, points.last().unwrap().0/1.0, myround(ymin, 5.0)-10.0, myround(ymax, 5.0)+10.0)
-        .linecolorplot(&Shape::Lines(&points_2), RGB8::new(254, 0, 0))
-        .linecolorplot(&Shape::Lines(&points), RGB8::new(254, 245, 116))
+    Chart::new_with_y_range(3*size, 2*size, points.last().unwrap().0/-25.0, points.last().unwrap().0/1.0, myround(ymin, 5.0)-10.0, myround(ymax, 5.0)+10.0)
+        .linecolorplot(&Shape::Lines(&points), colour)
         .x_label_format(LabelFormat::Custom(Box::new(move |val| {
-            if val <= 1.0 { format!("  {}                                                            {}", start_date.to_string(), mid_date.to_string()) } 
-            else if val >= 2.0 { end_date.to_string() } 
+            if val <= 1.0 { format!("  {}{}{}", start_date.to_string(), (0..(size*2/3 - 10)).map(|_| " ").collect::<String>(), mid_date.to_string()) } 
+            else if val >= 2.0 {format!("{}", end_date.to_string()) } 
             else { "".to_string() }
         })))
 
-        .y_label_format(LabelFormat::Custom(Box::new(|value| format!("{:.1}%", value))))
+        .y_label_format(LabelFormat::Custom(Box::new(move |value| {format!("{:.1}{}", value, units)})))
         .y_tick_display(TickDisplay::Dense)
         .nice();
 
