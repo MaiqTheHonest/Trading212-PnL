@@ -8,7 +8,7 @@ use chrono::{Duration, NaiveDate, Utc};
 use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
 use std::collections::HashSet;
 use crate::t212::Order;
-use std::io;
+use std::io::{self, Write};
 use std::process::Command;
 
 
@@ -236,11 +236,7 @@ fn main() {
     let daily_returns: Vec<f32> = stats::get_daily_returns(just_returns.clone());
     let (mean, sd, sharpe) = stats::mean_sd_sharpe(&daily_returns);
 
-    // println!("Press any key to exit...");
-    // stdin().read_line(&mut String::new()).unwrap();
-    println!("/s      view portfolio statistics");
-    println!("/r      view realized returns");
-    println!("/q      quit");
+    printallcommands();
 
     loop {
         let mut input = String::new();
@@ -249,6 +245,7 @@ fn main() {
 
         match command {
             "/s" => {
+                clear_last_n_lines(4);
                 println!(" _________________________________________");
                 println!("|                       |                 |");
                 println!("| {0: <21} | {1: <15.4} | ", "unrealised PnL(%)", current_return);
@@ -261,10 +258,13 @@ fn main() {
                 println!("|                       |                 |");
                 println!("| {0: <21} | {1: <15.4} | ", "daily avg. return(%)", mean);
                 println!("|                       |                 |");
-                println!(" ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");            
+                println!(" ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");
+                printallcommands();            
             },
-            "/r" => {println!("\nAbsolute realized return, GBP");
-                plotter::display_to_console(&real_returns_abs, start_date, end_date, 40, RGB8::new(255, 51, 255), String::from_str(" GBP").unwrap())},
+            "/r" => {clear_last_n_lines(4);
+                println!("\nAbsolute realized return, GBP");
+                plotter::display_to_console(&real_returns_abs, start_date, end_date, 40, RGB8::new(255, 51, 255), String::from_str(" GBP").unwrap());
+                printallcommands()},
             "/q" => {println!("Quitting...");
             break},
             "" => println!("Enter valid command or /q to quit."),
@@ -376,6 +376,24 @@ fn process_order(
     
 
 
+fn printallcommands() {
+    println!("/s      view portfolio statistics");
+    println!("/r      view realized returns");
+    println!("/q      quit");
+}
+
+
+
+fn clear_last_n_lines(n: u8) {
+    let mut stdout = io::stdout();
+    for _ in 0..n {
+        // move cursor up a line
+        write!(stdout, "\x1B[1A").unwrap();
+        // clear the line
+        write!(stdout, "\x1B[2K").unwrap();
+    }
+    stdout.flush().unwrap();
+}
 
 
 

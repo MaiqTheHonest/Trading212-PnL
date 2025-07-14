@@ -19,13 +19,13 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
 
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
-        let api_response = recursive_call_api(&cursor).await;
+        let api_response = recursive_call_api("https://live.trading212.com/api/v0/equity/history/orders", &cursor, ResponseType::Orders).await;
         // println!("{:?}", api_response);
 
         (cursor, orders) = match api_response {   // process_items returns a tuple so we catch both cursor
-            Ok(v) => process_items(v),            // and orders in this match
-            Err(e) => {
-                eprintln!("{}", e);               // doesn't assign tuple but breaks loop so compiler doesn't care
+            Ok(CallResponse::Orders(items)) => process_items(items),            // and orders in this match
+            _ => {
+                // eprintln!("{}", e);               // doesn't assign tuple but breaks loop so compiler doesn't care
                 break
             }
         };
@@ -51,7 +51,7 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
 
 // defining structs for json output to be deserialized into (within call_api)
 #[derive(Debug, Deserialize)]
-struct Items {
+pub struct Items {
     items: Vec<Order>,
 
 }
@@ -75,19 +75,47 @@ pub struct Order {                                            // both the struct
 
 }
 
+
+// the decider for what recursive_api_call returns
+pub enum ResponseType {
+    Orders,
+    Divis
+}
+
+
+// defining structs for json output to be deserialized into (within recursive_api_call)
+#[derive(Debug, Deserialize)]
+pub struct Dividends {
+    pub items: Vec<Dividend>,
+    pub nextPagePath: Option<String>
+
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Dividend {                                            // both the struct and fields have to be public to be accessed in main
+    pub ticker: String,
+    pub amount: f64,
+    pub paidOn: String
+}
+
+// enum to hold the other struct types
+pub enum CallResponse {
+    Orders(Items), // orders
+    Divis(Dividends)
+}
+
+
 fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> where D: Deserializer<'de> {    // the routine itself  <-||
     Option::<f64>::deserialize(deserializer).map(|opt| opt.unwrap_or(0.0))
 }
 
-// THIS IS DEVELOP BRANCH
 
 
-async fn recursive_call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>>{
-
+// returns a CallResponse which can be either an Orders or a Dividends variant
+pub async fn recursive_call_api(api_url: &str, current_cursor: &String, response_type: ResponseType) -> Result<CallResponse, Box<dyn Error>>{
+ 
     let api_key = fs::read_to_string("api_key.txt")
     .expect("could not find api_key.txt");
-
-    let api_url = "https://live.trading212.com/api/v0/equity/history/orders";
 
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&api_key)?);
@@ -106,13 +134,18 @@ async fn recursive_call_api(current_cursor: &String) -> Result<Items, Box<dyn Er
         .await?;
 
     if response.status().is_success() {
-        let catcher: Items = response.json().await?;    // Items is the outer struct to which we feed serde_json output
-        Ok(catcher)
+        match response_type {
+            ResponseType::Orders => {let catcher: Items = response.json().await?;
+            return Ok(CallResponse::Orders(catcher))},
+            ResponseType::Divis => {let catcher: Dividends = response.json().await?;
+            return Ok(CallResponse::Divis(catcher))},
+
+        }
 
     } else {
         if response.status().as_str().contains("429"){  // 429 means too many requests
             countdown(60);
-            let d2_response = Box::pin(recursive_call_api(current_cursor)).await;  // Box::pin because Rust doesn't allow recursive async funcs that are not boxed
+            let d2_response = Box::pin(recursive_call_api(api_url, current_cursor, response_type)).await;  // Box::pin because Rust doesn't allow recursive async funcs that are not boxed
             return d2_response
         } else {
             Err(format!("API call failed: {}", response.status()).into())

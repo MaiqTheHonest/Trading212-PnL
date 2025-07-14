@@ -1,12 +1,10 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 use std::collections::HashMap;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use std::error::Error;
-use std::fs;
 use chrono::DateTime;
-use serde::Deserialize;
 use std::{thread, time};
+use crate::t212::{recursive_call_api, CallResponse, Dividend, Dividends, ResponseType};
 
 
 
@@ -15,22 +13,22 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
 
     let mut data = Vec::<Dividend>::new();
     let mut cursor = String::from("");    // start with empty cursor
-    let mut orders = Vec::new();          // and empty vector <T> (holds any type but mine is Vec<Dividend>)
+    let mut dividends = Vec::new();          // and empty vector <T> (holds any type but mine is Vec<Dividend>)
 
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
-        let api_response = call_api(&cursor).await;
+        let api_response = recursive_call_api("https://live.trading212.com/api/v0/history/dividends", &cursor, ResponseType::Divis).await;
         // println!("{:?}", &api_response);
 
-        (cursor, orders) = match api_response {   // process_items returns a tuple so we catch both cursor
-            Ok(v) => process_items(v),            // and orders in this match
-            Err(e) => {
-                eprintln!("{}", e);               // doesn't assign tuple but breaks loop so compiler doesn't care
+        (cursor, dividends) = match api_response {   // process_items returns a tuple so we catch both cursor
+            Ok(CallResponse::Divis(items)) => process_items(items),            // and orders in this match
+            _ => {
+                // eprintln!("{}", e);               // doesn't assign tuple but breaks loop so compiler doesn't care
                 break
             }
         };
 
-        data.append(&mut orders);
+        data.append(&mut dividends);
 
         thread::sleep(time::Duration::from_millis(10))
     };
@@ -50,69 +48,18 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
 
 
 
-// defining structs for json output to be deserialized into (within call_api)
-#[derive(Debug, Deserialize)]
-struct Items {
-    items: Vec<Dividend>,
-    nextPagePath: Option<String>
+fn process_items(dividends: Dividends) -> (String, Vec<Dividend>) {
 
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Dividend {                                            // both the struct and fields have to be public to be accessed in main
-    pub ticker: String,
-    pub amount: f64,
-    pub paidOn: String
-}
-
-
-// THIS IS DEVELOP BRANCH
-async fn call_api(current_cursor: &String) -> Result<Items, Box<dyn Error>> {
-
-    let api_key = fs::read_to_string("api_key.txt")
-    .expect("could not find api_key.txt");
-
-    let api_url = "https://live.trading212.com/api/v0/history/dividends";
-
-    let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, HeaderValue::from_str(&api_key)?);
-
-    let params = HashMap::from([
-        ("cursor", current_cursor.as_str()),
-        ("ticker", ""),
-        ("limit", "40")]);
-
-    let client = reqwest::Client::new();
-    let response = client
-        .get(api_url)
-        .headers(headers)
-        .query(&params)
-        .send()
-        .await?;
-
-    if response.status().is_success() {
-        let catcher: Items = response.json().await?;    // Items is the outer struct to which we feed serde_json output
-        Ok(catcher)
-
-    } else {
-        Err(format!("API call failed: {}", response.status()).into())
-    }
-}
-
-
-
-fn process_items(orders: Items) -> (String, Vec<Dividend>) {
-
-    let timestamp = extract_unix(&orders.items);
+    let timestamp = extract_unix(&dividends.items);
     let mut blarg = match timestamp {
         Some(v) => v,                       // if it worked, return unxi timestamp as cursor (blarg)
         None => String::from("complete")    // it it didn't, return "complete" as cursor (blarg)
     };
-    if orders.nextPagePath == None {
+    if dividends.nextPagePath == None {
         blarg = String::from("complete");
     }
     eprintln!("Dividend import from Trading212: {}", blarg);
-    (blarg, orders.items)
+    (blarg, dividends.items)
 }
 
 
