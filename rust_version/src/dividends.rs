@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use chrono::DateTime;
 use std::{thread, time};
-use crate::t212::{recursive_call_api, CallResponse, Dividend, Dividends, ResponseType};
+use crate::t212::{recursive_call_api, extract_unix, CallResponse, Dividend, Dividends, ResponseType};
 
 
 
@@ -49,33 +49,21 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
 
 
 fn process_items(dividends: Dividends) -> (String, Vec<Dividend>) {
-
-    let timestamp = extract_unix(&dividends.items);
-    let mut blarg = match timestamp {
-        Some(v) => v,                       // if it worked, return unxi timestamp as cursor (blarg)
-        None => String::from("complete")    // it it didn't, return "complete" as cursor (blarg)
+                                                //vvv if none then none, if some then use in this closure  
+    let mut timestamp = match dividends.items.last().and_then(|dividend| extract_unix(&dividend.paidOn)) {
+        Some(v) => v,                       // if it worked, return unix timestamp as cursor 
+        None => String::from("complete")    // it it didn't, return "complete" as cursor
     };
+    eprintln!("processed page: {:?}", timestamp);
+    
+
     if dividends.nextPagePath == None {
-        blarg = String::from("complete");
+        timestamp = String::from("complete");
     }
-    eprintln!("Dividend import from Trading212: {}", blarg);
-    (blarg, dividends.items)
+    eprintln!("Dividend import from Trading212: {}", timestamp);
+    (timestamp, dividends.items)
 }
 
 
 
-fn extract_unix(timestamp: &Vec<Dividend>) -> Option<String> {
-    // shadowing
-    let timestamp = timestamp
-    .last()?
-    .paidOn
-    .as_str();
-
-    let timestamp = DateTime::parse_from_rfc3339(timestamp)
-    .ok()?
-    .timestamp_millis()
-    .to_string();
-
-    Some(timestamp)
-}
 

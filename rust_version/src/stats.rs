@@ -245,3 +245,63 @@ pub fn covariance(just_returns: &Vec<f32>, bench_returns: &Vec<f32>, mean: f32, 
         .map(|(r_p, r_b)| (r_p - mean) * (r_b - mean_bench))
         .sum::<f32>() / n
 }
+
+
+
+
+
+
+// Newton-Raphson method for money-weighted rate of return
+
+pub fn mwrr(cashflows: &Vec<(NaiveDate, f64)>, guess: f64) -> Option<f64> {
+
+    const ITERS: usize = 1000;
+    const TOLERANCE: f64 = 0.01;
+
+    //  || cashflows.len() == 1 
+    if cashflows.is_empty(){
+        return None;
+    };
+
+    let t0 = cashflows[0].0;
+    let total_days = (cashflows.last().unwrap().0 - cashflows.first().unwrap().0).num_days() as f64;
+    let npv = |rate: f64| -> f64 {
+        cashflows.iter().map(|cf| {
+            let days = (cf.0 - t0).num_days() as f64;
+            cf.1 / (1.0 + rate).powf(days / total_days)
+        }).sum()
+    };
+
+    // the derivative of the cash flow sum function to be used in x1 = x0 - f(x0)/f'(x0)
+    let npv_derivative = |rate: f64| -> f64 {
+        cashflows.iter().map(|cf| {
+            let days = (cf.0 - t0).num_days() as f64;
+            let exp = days / total_days;
+            -cf.1 * exp / (1.0 + rate).powf(exp + 1.0)
+        }).sum()
+    };
+
+    let try_converge = |guess: f64| -> Option<f64> {
+        let mut rate = guess;
+        for _ in 0..ITERS {
+            let f = npv(rate);
+            let f_dash = npv_derivative(rate);
+
+            // check for non-zero derivative or just a really small number that leads to large step size 
+            if f_dash.abs() < 1e-10 {break}
+
+            let next_rate = rate - f / f_dash;
+
+            if (next_rate - rate).abs() < TOLERANCE {
+                return Some(next_rate);
+            }
+            rate = next_rate;
+        }
+        None
+    };
+
+    match try_converge(guess) {
+        Some(rate) => Some(rate),        // cash flow function might not converge if guess is +ve and irr is -ve
+        None => try_converge(-guess)    // or vice versa so we try -guess if it didnt work first time around
+    }
+}

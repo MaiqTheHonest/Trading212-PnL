@@ -4,11 +4,11 @@ mod stats;
 mod dividends;
 mod plotter;
 use rgb::RGB8;
-use chrono::{Duration, NaiveDate, Utc};
-use std::{collections::{hash_map::Entry, HashMap}, error::Error, str::FromStr};
+use chrono::{Days, Duration, NaiveDate, Utc};
+use std::{collections::{hash_map::Entry, HashMap}, error::Error, fs::File, io::Read, str::FromStr};
 use std::collections::HashSet;
-use crate::t212::Order;
-use std::io::{self, Write};
+use crate::{stats::{hashmap_to_sorted_vec, mwrr}, t212::Order};
+use std::io::{self, Write, BufReader};
 use std::process::Command;
 
 
@@ -71,6 +71,9 @@ fn main() {
     .map(|d| (d, HashMap::new()))    // create empty portfolio hashmap for every date
     .collect();
 
+    // initialize where we store cash flows (only for use in mwrr calculations)
+    let mut cash_flows: HashMap<NaiveDate, f64> = HashMap::new();
+
     // initialize where we store dates for which certain tickers wiere present in portfolio
     let mut ticker_history: HashMap<String, (NaiveDate, NaiveDate)> = HashMap::new();
 
@@ -118,7 +121,7 @@ fn main() {
 
         // filtering out cancelled or rejected orders
         if order.status == String::from("FILLED") {
-            process_order(&mut portfolio_t, &order, &mut ticker_history, &mut real_returns, *time_range.last().unwrap());
+            process_order(&order, &mut portfolio_t, &mut ticker_history, &mut real_returns, &mut cash_flows, *time_range.last().unwrap());
         } else {};
 
         // set portoflio history's element to a correct pair of {Date: portfolio_t}
@@ -173,12 +176,12 @@ fn main() {
     .collect();
 
     // irrelevant atm: benchmark and absolute cb and mv for beta and other stats to add in the future
-    let cb_mv_history: Vec<(NaiveDate, (f64, f64))> = stats::hashmap_to_sorted_vec(cb_mv_history);
-    let (_, _cb_mv_history): (Vec<_>, Vec<(f64, f64)>) = cb_mv_history.into_iter().unzip();
-    let snp_prices: HashMap<NaiveDate, f64> = yahoo::get_prices("^GSPC", start_date, end_date).expect("couldnt get snp");
-    let mut snp_prices = stats::hashmap_to_sorted_vec(snp_prices);
-    stats::interpolate(&mut snp_prices);
-    let _snp_returns = stats::calculate_benchmark_returns(snp_prices);
+    // let cb_mv_history: Vec<(NaiveDate, (f64, f64))> = stats::hashmap_to_sorted_vec(cb_mv_history);
+    // let (_, _cb_mv_history): (Vec<_>, Vec<(f64, f64)>) = cb_mv_history.into_iter().unzip();
+    // let snp_prices: HashMap<NaiveDate, f64> = yahoo::get_prices("^GSPC", start_date, end_date).expect("couldnt get snp");
+    // let mut snp_prices = stats::hashmap_to_sorted_vec(snp_prices);
+    // stats::interpolate(&mut snp_prices);
+    // let _snp_returns = stats::calculate_benchmark_returns(snp_prices);
     //##########################################################
 
 
@@ -214,13 +217,32 @@ fn main() {
 
 
 
+    // MONEY-WEIGHTED RETURNS #################################
+    let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
+
+    let cb_mv_history = hashmap_to_sorted_vec(cb_mv_history);
+
+    for (date, (_, mv)) in cb_mv_history.iter() {
+        let mut cash_flows_plus_mv = cash_flows.clone();
+        cash_flows_plus_mv.entry(*date).and_modify(|cf| *cf += mv).or_insert(*mv);
+        let irr = mwrr(&hashmap_to_sorted_vec(cash_flows_plus_mv), 0.5).unwrap_or(0.0) * 100.0;
+        mwrr_returns.push((*date, irr as f32));
+    };
+    plotter::display_to_console(&mwrr_returns, start_date, end_date, 70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
+    // println!("{:?}", mwrr_returns);
+    // ########################################################
+
+
+    
+
+    
     // PRINTING AND PLOTTING TO CONSOLE #######################
     let naivetime_held = end_date - start_date;
     let days_held: f32 = naivetime_held.num_days() as f32;
     let years_held: f32 = (&days_held)/365.0;
     let months_held: i32 = ((&years_held*12.0) as i32) % 12;                                                                              // vvv this is incorrect
     println!("\n \n Found portfolio of {:.} years, {:.} months, and {:.} days.\n", years_held.floor(), months_held, days_held as i32 % 365 - 30*months_held);
-
+    
     // switch to UTF-8 support by default
     if cfg!(target_os = "windows") {
         let _ = Command::new("chcp").arg("65001").status();
@@ -228,21 +250,21 @@ fn main() {
 
     println!("\nUnrealized return, %");
     plotter::display_to_console(&return_history, start_date, end_date, 70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
-
+    
     let just_returns: Vec<f32> = stats::strip_dates(return_history);
-
+    
     let current_return = &just_returns.last().unwrap();
     let annual_return = ((*current_return/100.0 + 1.0).powf(1.0/(&years_held)) - 1.0) * 100.0;
     let daily_returns: Vec<f32> = stats::get_daily_returns(just_returns.clone());
     let (mean, sd, sharpe) = stats::mean_sd_sharpe(&daily_returns);
-
+    
     printallcommands();
-
+    
     loop {
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
         let command = input.trim().trim();
-
+        
         match command {
             "/s" => {
                 clear_last_n_lines(4);
@@ -265,8 +287,8 @@ fn main() {
                 println!("\nAbsolute realized return, GBP");
                 plotter::display_to_console(&real_returns_abs, start_date, end_date, 40, RGB8::new(255, 51, 255), String::from_str(" GBP").unwrap());
                 printallcommands()},
-            "/q" => {println!("Quitting...");
-            break},
+                "/q" => {println!("Quitting...");
+                break},
             "" => println!("Enter valid command or /q to quit."),
             _ => println!("Unknown command: {}", command),
         }
@@ -287,93 +309,98 @@ fn remove_duplicates(orders: &mut Vec<Order>) {
 
 
 fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
-
+    
     let root_date = data.first().ok_or("couldn't get first order")?.dateCreated.as_str();    
 
     // ^^^ last() returns an option, ok_or converts it to result, "?" propagates the error
 
     let mut start_date = NaiveDate::parse_from_str(&root_date, "%Y-%m-%d")?;
-
-
+    
+    
     let end_date = Utc::now().date_naive();
-
+    
     let mut time_range = Vec::new();
-
+    
     while start_date <= end_date {
         time_range.push(start_date);
         start_date += Duration::days(1);
     }
-
+    
     Ok(time_range)    // return
 }
 
 
 
 fn process_order(
-    portfolio_t: &mut HashMap<String, (f64, f64)>,
     order: &Order,
+    portfolio_t: &mut HashMap<String, (f64, f64)>,
     ticker_history: &mut HashMap<String, (NaiveDate, NaiveDate)>,
     real_returns: &mut HashMap<NaiveDate, (f64, f64)>,
+    cash_flows: &mut HashMap<NaiveDate, f64>,
     last_date: NaiveDate) {
 
     let q_1 = order.filledQuantity;
     let p_1 = order.fillPrice;
     let date = NaiveDate::from_str(order.dateCreated.as_str()).unwrap();
     let ticker = order.ticker.clone();
-
+    
+    // log the order as a cash flow
+    cash_flows.entry(date).and_modify(|days_cash_flow| *days_cash_flow += (-q_1*p_1)).or_insert(-q_1*p_1);
+    
+    // log the order's presence in portolios and ticker histories
     match portfolio_t.entry(order.ticker.clone()) {
         Entry::Occupied(mut occupied) => {
-
+            
             let (q_0, p_0) = occupied.get_mut();
-
+            
             if *q_0 + q_1 == 0.0 {                                              // if sold everything
                 
                 let (keeps_date, _) = ticker_history.get(&ticker).unwrap();
                 ticker_history.insert(ticker, (*keeps_date, date));
-
+                
                 real_returns.entry(date)
                 .and_modify(|cbmv| *cbmv = (cbmv.0 + *p_0*(-q_1), cbmv.1 + p_1*(-q_1)))
                 .or_insert((*p_0*(-q_1), p_1*(-q_1)));
             
-                occupied.remove();    // removes ticker from portfolio
+            occupied.remove();    // removes ticker from portfolio
+            
+        } else {
+            if q_1 >= 0.0 {                                                // if bought some *more*
+                *p_0 = (*q_0* *p_0 + q_1*p_1)/(*q_0 + q_1);
+                *q_0 += q_1;
                 
-            } else {
-                if q_1 >= 0.0 {                                                // if bought some *more*
-                    *p_0 = (*q_0* *p_0 + q_1*p_1)/(*q_0 + q_1);
-                    *q_0 += q_1;
-
-                    ticker_history.entry(ticker.clone())
+                ticker_history.entry(ticker.clone())
                     .and_modify(|e| e.1 = last_date.clone())
                     .or_insert((date.clone(), last_date.clone()));
-
-
-                    } else {
+                
+                
+            } else {
                         *q_0 += q_1;                                           // if sold some (not everything)
-
+                        
                         ticker_history.entry(ticker.clone())
                         .and_modify(|e| e.1 = last_date.clone())
                         .or_insert((date.clone(), last_date.clone()));
-
-
+                    
+                    
                         real_returns.entry(date)
                         .and_modify(|cbmv| *cbmv = (cbmv.0 + *p_0*(-q_1), cbmv.1 + p_1*(-q_1)))
                         .or_insert((*p_0*(-q_1), p_1*(-q_1)));
                     };
         };
     },
-        Entry::Vacant(vacant) => {                                            // if bought some
+    Entry::Vacant(vacant) => {                                            // if bought some
 
             
-            vacant.insert((q_1, p_1));
-
-            ticker_history.entry(ticker.clone())
-            .and_modify(|e| e.1 = last_date.clone())
-            .or_insert((date.clone(), last_date.clone()));
-        },
-    };
+        vacant.insert((q_1, p_1));
+        
+        ticker_history.entry(ticker.clone())
+        .and_modify(|e| e.1 = last_date.clone())
+        .or_insert((date.clone(), last_date.clone()));
+},
+};
 }      // returns nothing, just amends portfolio_t and ticker_history in-place
 
-    
+
 
 
 fn printallcommands() {
@@ -398,6 +425,14 @@ fn clear_last_n_lines(n: u8) {
 
 
 
+#[test]
+fn do_stuff(){
+    let file = File::open("test.json").unwrap();
+    let reader = BufReader::new(file);
+    let cash_flows: Vec<(NaiveDate, f64)> = serde_json::from_reader(reader).unwrap();
 
-
-
+    // let cash_flows = serde_json::to_vec_pretty(&file);
+    // let file = File::create("test.json").expect("could not create test file");
+    // serde_json::to_writer(&file, &cash_flows);
+    println!("XIRRRRRRRRRRRRRRRRRRRRRRR with no divis = {:.6}%", mwrr(&cash_flows, 0.5).expect("the xirr failed, not the interpolate") * 100.0);
+}

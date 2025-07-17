@@ -22,21 +22,21 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
         let api_response = recursive_call_api("https://live.trading212.com/api/v0/equity/history/orders", &cursor, ResponseType::Orders).await;
         // println!("{:?}", api_response);
 
-        (cursor, orders) = match api_response {   // process_items returns a tuple so we catch both cursor
+
+        (cursor, orders) = match api_response {                    // process_items returns a tuple so we catch both cursor
             Ok(CallResponse::Orders(items)) => process_items(items),            // and orders in this match
             _ => {
                 // eprintln!("{}", e);               // doesn't assign tuple but breaks loop so compiler doesn't care
                 break
             }
         };
+
         data.append(&mut orders);
         
-        // thread::sleep(time::Duration::from_millis(10))
     };
 
     
     
-
     for item in &mut data {
         item.dateCreated = item.dateCreated.chars().take(10).collect();    // convert date to daily
     }
@@ -49,7 +49,7 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
 
 
 
-// defining structs for json output to be deserialized into (within call_api)
+// defining structs for json output to be deserialized into (within recursive_api_call)
 #[derive(Debug, Deserialize)]
 pub struct Items {
     items: Vec<Order>,
@@ -75,24 +75,15 @@ pub struct Order {                                            // both the struct
 
 }
 
-
-// the decider for what recursive_api_call returns
-pub enum ResponseType {
-    Orders,
-    Divis
-}
-
-
-// defining structs for json output to be deserialized into (within recursive_api_call)
 #[derive(Debug, Deserialize)]
 pub struct Dividends {
     pub items: Vec<Dividend>,
     pub nextPagePath: Option<String>
-
+    
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Dividend {                                            // both the struct and fields have to be public to be accessed in main
+pub struct Dividend {
     pub ticker: String,
     pub amount: f64,
     pub paidOn: String
@@ -104,6 +95,11 @@ pub enum CallResponse {
     Divis(Dividends)
 }
 
+// the decider for which struct recursive_api_call should return
+pub enum ResponseType {
+    Orders,
+    Divis
+}
 
 fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> where D: Deserializer<'de> {    // the routine itself  <-||
     Option::<f64>::deserialize(deserializer).map(|opt| opt.unwrap_or(0.0))
@@ -157,24 +153,20 @@ pub async fn recursive_call_api(api_url: &str, current_cursor: &String, response
 
 
 fn process_items(orders: Items) -> (String, Vec<Order>) {
-
-    let timestamp = extract_unix(&orders.items);
-    let blarg = match timestamp {
-        Some(v) => v,                       // if it worked, return unxi timestamp as cursor (blarg)
-        None => String::from("complete")    // it it didn't, return "complete" as cursor (blarg)
+                                                //vvv if none then none, if some then use in this closure  
+    let timestamp = match orders.items.last().and_then(|order| extract_unix(&order.dateCreated)) {
+        Some(v) => v,                       // if it worked, return unix timestamp as cursor 
+        None => String::from("complete")    // it it didn't, return "complete" as cursor 
     };
-    eprintln!("processed page: {:?}", blarg);
-    (blarg, orders.items)
+    eprintln!("processed page: {:?}", timestamp);
+    (timestamp, orders.items)
 }
 
 
 
-fn extract_unix(timestamp: &Vec<Order>) -> Option<String> {
+pub fn extract_unix(timestamp: &String) -> Option<String> {
     // shadowing
-    let timestamp = timestamp
-    .last()?
-    .dateCreated
-    .as_str();
+    let timestamp = timestamp.as_str();
 
     let timestamp = DateTime::parse_from_rfc3339(timestamp)
     .ok()?
