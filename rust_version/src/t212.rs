@@ -41,9 +41,6 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
         item.dateCreated = item.dateCreated.chars().take(10).collect();    // convert date to daily
     }
 
-
-    println!("\nfetched a total of {} orders", data.len());
-
     Ok(data)
 }
 

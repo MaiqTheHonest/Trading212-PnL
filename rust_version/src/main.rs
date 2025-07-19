@@ -5,7 +5,7 @@ mod dividends;
 mod plotter;
 use rgb::RGB8;
 use chrono::{Days, Duration, NaiveDate, Utc};
-use std::{collections::{hash_map::Entry, HashMap}, error::Error, fs::File, io::Read, str::FromStr};
+use std::{collections::{hash_map::Entry, HashMap}, error::Error, fs::File, io::Read, process, str::FromStr};
 use std::collections::HashSet;
 use crate::{stats::{hashmap_to_sorted_vec, mwrr}, t212::Order};
 use std::io::{self, Write, BufReader};
@@ -16,10 +16,20 @@ fn main() {
 
     // GETTING ORDERS AND ACTIVE TIME RANGE ###################
     let mut data = match t212::get_orders() {
-        Ok(v) => {println!("\nOrder import from Trading212: complete");
-        v
-    },
-    Err(e) => panic!("Order import from t212 failed with error code: {}", e)
+        Ok(v) => {
+            if v.is_empty(){
+                println!("Error: invalid API key or new account with 0 orders");
+                process::exit(1)
+            } else {
+                println!("\nOrder import from Trading212: complete");
+                println!("fetched a total of {} orders \n ", v.len());
+                v
+            }
+        },
+        Err(e) => {
+            println!("Order import from t212 failed with error code: {}", e);
+            process::exit(1)
+        }
 };
     // REVERSE IS IMPORTANT, as transactions arrive in inverse order
     // after this reverse(), time is aligned with vector index (ascending)
@@ -218,9 +228,19 @@ fn main() {
 
 
     // MONEY-WEIGHTED RETURNS #################################
+
+
+
     let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
 
     let cb_mv_history = hashmap_to_sorted_vec(cb_mv_history);
+
+
+    let file = File::create("test2.json").expect("could not create test file");
+    serde_json::to_writer(&file, &cb_mv_history).unwrap();
+    // serde_json::to_writer(&file, &blarg);
+
+
 
     for (date, (_, mv)) in cb_mv_history.iter() {
         let mut cash_flows_plus_mv = cash_flows.clone();
@@ -228,6 +248,7 @@ fn main() {
         let irr = mwrr(&hashmap_to_sorted_vec(cash_flows_plus_mv), 0.5).unwrap_or(0.0) * 100.0;
         mwrr_returns.push((*date, irr as f32));
     };
+    // println!("{:?}", mwrr_returns);
     plotter::display_to_console(&mwrr_returns, start_date, end_date, 70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
     // println!("{:?}", mwrr_returns);
     // ########################################################
@@ -287,8 +308,10 @@ fn main() {
                 println!("\nAbsolute realized return, GBP");
                 plotter::display_to_console(&real_returns_abs, start_date, end_date, 40, RGB8::new(255, 51, 255), String::from_str(" GBP").unwrap());
                 printallcommands()},
-                "/q" => {println!("Quitting...");
+
+            "/q" => {println!("Quitting...");
                 break},
+
             "" => println!("Enter valid command or /q to quit."),
             _ => println!("Unknown command: {}", command),
         }
@@ -431,8 +454,29 @@ fn do_stuff(){
     let reader = BufReader::new(file);
     let cash_flows: Vec<(NaiveDate, f64)> = serde_json::from_reader(reader).unwrap();
 
-    // let cash_flows = serde_json::to_vec_pretty(&file);
+    // let file = File::open("test2.json").unwrap();
+    // let reader = BufReader::new(file);
+
+    // let cb_mv_history: Vec<(NaiveDate, (f64, f64))> = serde_json::from_reader(reader).unwrap();
+    // let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
+
+
+    // for (date, (_, mv)) in cb_mv_history.iter() {
+    //     let mut cash_flows_plus_mv = cash_flows.clone();
+    //     cash_flows_plus_mv.entry(*date).and_modify(|cf| *cf += mv).or_insert(*mv);
+    //     let irr = mwrr(&hashmap_to_sorted_vec(cash_flows_plus_mv), 0.5).unwrap_or(0.0) * 100.0;
+    //     mwrr_returns.push((*date, irr as f32));
+    // };
+    // // let cash_flows = serde_json::to_vec_pretty(&file);
     // let file = File::create("test.json").expect("could not create test file");
     // serde_json::to_writer(&file, &cash_flows);
     println!("XIRRRRRRRRRRRRRRRRRRRRRRR with no divis = {:.6}%", mwrr(&cash_flows, 0.5).expect("the xirr failed, not the interpolate") * 100.0);
+}
+
+
+#[test]
+fn ppp(){
+    let flot: f64 = -0.1;
+    let blarg = flot.powf(1.0 / 3.0);
+    println!("flot is {:?}", blarg);
 }

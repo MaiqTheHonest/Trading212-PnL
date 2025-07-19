@@ -255,7 +255,7 @@ pub fn covariance(just_returns: &Vec<f32>, bench_returns: &Vec<f32>, mean: f32, 
 
 pub fn mwrr(cashflows: &Vec<(NaiveDate, f64)>, guess: f64) -> Option<f64> {
 
-    const ITERS: usize = 1000;
+    const ITERS: usize = 100;
     const TOLERANCE: f64 = 0.01;
 
     //  || cashflows.len() == 1 
@@ -287,21 +287,24 @@ pub fn mwrr(cashflows: &Vec<(NaiveDate, f64)>, guess: f64) -> Option<f64> {
             let f = npv(rate);
             let f_dash = npv_derivative(rate);
 
+            
             // check for non-zero derivative or just a really small number that leads to large step size 
-            if f_dash.abs() < 1e-10 {break}
-
-            let next_rate = rate - f / f_dash;
-
+            if f_dash.abs() < 1e-3 {break}
+            
+            let next_rate = (rate - f / f_dash).clamp(-0.9, std::f64::INFINITY);
             if (next_rate - rate).abs() < TOLERANCE {
                 return Some(next_rate);
             }
             rate = next_rate;
         }
+        
+        
         None
     };
-
+    
     match try_converge(guess) {
         Some(rate) => Some(rate),        // cash flow function might not converge if guess is +ve and irr is -ve
         None => try_converge(-guess)    // or vice versa so we try -guess if it didnt work first time around
     }
 }
+// println!("rate is {:?}, f is {:?}, fdash is {:?}", rate, f, f_dash);
