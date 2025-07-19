@@ -1,5 +1,5 @@
 use chrono::{Days, NaiveDate};
-use std::collections::HashMap;
+use std::{collections::HashMap, f32::INFINITY};
 
 
 const RISK_FREE_RATE: f32 = 0.03;
@@ -255,8 +255,8 @@ pub fn covariance(just_returns: &Vec<f32>, bench_returns: &Vec<f32>, mean: f32, 
 
 pub fn mwrr(cashflows: &Vec<(NaiveDate, f64)>, guess: f64) -> Option<f64> {
 
-    const ITERS: usize = 100;
-    const TOLERANCE: f64 = 0.01;
+    const ITERS: usize = 1000;
+    const TOLERANCE: f64 = 0.001;
 
     //  || cashflows.len() == 1 
     if cashflows.is_empty(){
@@ -279,26 +279,29 @@ pub fn mwrr(cashflows: &Vec<(NaiveDate, f64)>, guess: f64) -> Option<f64> {
             let exp = days / total_days;
             -cf.1 * exp / (1.0 + rate).powf(exp + 1.0)
         }).sum()
-    };
+    };    
+
 
     let try_converge = |guess: f64| -> Option<f64> {
         let mut rate = guess;
         for _ in 0..ITERS {
             let f = npv(rate);
-            let f_dash = npv_derivative(rate);
+            let mut f_dash = npv_derivative(rate);
 
             
             // check for non-zero derivative or just a really small number that leads to large step size 
-            if f_dash.abs() < 1e-3 {break}
-            
-            let next_rate = (rate - f / f_dash).clamp(-0.9, std::f64::INFINITY);
+            if f_dash.abs() < 1e-10 {
+                // println!("f_dash: {:?}", f_dash);
+                f_dash = 100.0 * f;
+                // break
+            };
+            let next_rate = (rate - f / f_dash).clamp(-0.99, std::f64::INFINITY);
             if (next_rate - rate).abs() < TOLERANCE {
                 return Some(next_rate);
             }
             rate = next_rate;
         }
-        
-        
+                
         None
     };
     
@@ -307,4 +310,3 @@ pub fn mwrr(cashflows: &Vec<(NaiveDate, f64)>, guess: f64) -> Option<f64> {
         None => try_converge(-guess)    // or vice versa so we try -guess if it didnt work first time around
     }
 }
-// println!("rate is {:?}, f is {:?}, fdash is {:?}", rate, f, f_dash);

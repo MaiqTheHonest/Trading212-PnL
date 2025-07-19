@@ -231,26 +231,39 @@ fn main() {
 
 
 
+
+
+    // let file = File::create("test.json").expect("could not create test file");
+    // serde_json::to_writer(&file, &cash_flows).unwrap();
+
+    // let file = File::create("test2.json").expect("could not create test file");
+    // serde_json::to_writer(&file, &cb_mv_history).unwrap();
+    
+
+
+
+
     let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
 
     let cb_mv_history = hashmap_to_sorted_vec(cb_mv_history);
 
 
-    let file = File::create("test2.json").expect("could not create test file");
-    serde_json::to_writer(&file, &cb_mv_history).unwrap();
-    // serde_json::to_writer(&file, &blarg);
-
-
-
     for (date, (_, mv)) in cb_mv_history.iter() {
         let mut cash_flows_plus_mv = cash_flows.clone();
         cash_flows_plus_mv.entry(*date).and_modify(|cf| *cf += mv).or_insert(*mv);
-        let irr = mwrr(&hashmap_to_sorted_vec(cash_flows_plus_mv), 0.5).unwrap_or(0.0) * 100.0;
+        let cash_flows_plus_mv = &hashmap_to_sorted_vec(cash_flows_plus_mv)
+        .iter()
+        .take_while(|(d, _)| *d <= *date)
+        .cloned()
+        .collect();
+
+        let irr = mwrr(&cash_flows_plus_mv, 0.5).unwrap_or(0.0) * 100.0;
         mwrr_returns.push((*date, irr as f32));
+
     };
-    // println!("{:?}", mwrr_returns);
-    plotter::display_to_console(&mwrr_returns, start_date, end_date, 70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
-    // println!("{:?}", mwrr_returns);
+    plotter::display_to_console(&mwrr_returns, cb_mv_history.first().unwrap().0,
+        cb_mv_history.last().unwrap().0,
+        70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
     // ########################################################
 
 
@@ -452,31 +465,35 @@ fn clear_last_n_lines(n: u8) {
 fn do_stuff(){
     let file = File::open("test.json").unwrap();
     let reader = BufReader::new(file);
-    let cash_flows: Vec<(NaiveDate, f64)> = serde_json::from_reader(reader).unwrap();
+    let cash_flows: HashMap<NaiveDate, f64> = serde_json::from_reader(reader).unwrap();
 
-    // let file = File::open("test2.json").unwrap();
-    // let reader = BufReader::new(file);
+    let file = File::open("test2.json").unwrap();
+    let reader = BufReader::new(file);
+    let cb_mv_history: HashMap<NaiveDate, (f64, f64)> = serde_json::from_reader(reader).unwrap();
 
-    // let cb_mv_history: Vec<(NaiveDate, (f64, f64))> = serde_json::from_reader(reader).unwrap();
-    // let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
+    let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
+
+    let cb_mv_history = hashmap_to_sorted_vec(cb_mv_history);
 
 
-    // for (date, (_, mv)) in cb_mv_history.iter() {
-    //     let mut cash_flows_plus_mv = cash_flows.clone();
-    //     cash_flows_plus_mv.entry(*date).and_modify(|cf| *cf += mv).or_insert(*mv);
-    //     let irr = mwrr(&hashmap_to_sorted_vec(cash_flows_plus_mv), 0.5).unwrap_or(0.0) * 100.0;
-    //     mwrr_returns.push((*date, irr as f32));
-    // };
+    for (date, (_, mv)) in cb_mv_history.iter() {
+        let mut cash_flows_plus_mv = cash_flows.clone();
+        cash_flows_plus_mv.entry(*date).and_modify(|cf| *cf += mv).or_insert(*mv);
+        let cash_flows_plus_mv = &hashmap_to_sorted_vec(cash_flows_plus_mv)
+        .iter()
+        .take_while(|(d, _)| *d <= *date)
+        .cloned()
+        .collect();
+
+        let irr = mwrr(&cash_flows_plus_mv, 0.5).unwrap_or(0.0) * 100.0;
+        mwrr_returns.push((*date, irr as f32));
+
+    };
+    plotter::display_to_console(&mwrr_returns, cb_mv_history.first().unwrap().0,
+        cb_mv_history.last().unwrap().0,
+        70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
     // // let cash_flows = serde_json::to_vec_pretty(&file);
     // let file = File::create("test.json").expect("could not create test file");
     // serde_json::to_writer(&file, &cash_flows);
-    println!("XIRRRRRRRRRRRRRRRRRRRRRRR with no divis = {:.6}%", mwrr(&cash_flows, 0.5).expect("the xirr failed, not the interpolate") * 100.0);
-}
-
-
-#[test]
-fn ppp(){
-    let flot: f64 = -0.1;
-    let blarg = flot.powf(1.0 / 3.0);
-    println!("flot is {:?}", blarg);
+    // println!("XIRRRRRRRRRRRRRRRRRRRRRRR with no divis = {:.6}%", mwrr(&cash_flows, 0.5).expect("the xirr failed, not the interpolate") * 100.0);
 }
