@@ -54,7 +54,7 @@ pub async fn get_prices(symbol: &str, start_date: NaiveDate, end_date: NaiveDate
             // println!("{:?}", price_range)
         }
     } else {
-        println!("Could not fetch price data for ticker: {}", symbol);
+        println!("Could not fetch price data for ticker: _{}_", symbol);
     }
 
     Ok(price_range)

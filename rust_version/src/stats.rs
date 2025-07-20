@@ -265,8 +265,8 @@ pub fn covariance(just_returns: &Vec<f32>, bench_returns: &Vec<f32>, mean: f32, 
 
 pub fn mwrr(cashflows: &Vec<(NaiveDate, f64)>, guess: f64) -> Option<f64> {
 
-    const ITERS: usize = 1000;
-    const TOLERANCE: f64 = 0.001;
+    const ITERS: usize = 100;
+    const TOLERANCE: f64 = 0.005;
 
     //  || cashflows.len() == 1 
     if cashflows.is_empty(){

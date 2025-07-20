@@ -5,9 +5,9 @@ mod dividends;
 mod plotter;
 use rgb::RGB8;
 use chrono::{Days, Duration, NaiveDate, Utc};
-use std::{collections::{hash_map::Entry, HashMap}, error::Error, fs::File, io::Read, process, str::FromStr};
+use std::{collections::{hash_map::Entry, BTreeMap, HashMap}, default, error::Error, fs::File, io::Read, process, str::FromStr};
 use std::collections::HashSet;
-use crate::{stats::{hashmap_to_sorted_vec, mwrr}, t212::Order};
+use crate::{stats::{hashmap_to_sorted_vec, hashmap_to_btree, mwrr}, t212::Order};
 use std::io::{self, Write, BufReader};
 use std::process::Command;
 use std::fs;
@@ -215,9 +215,9 @@ fn main() {
         None => &(end_date, (0.0, 0.0))
     };
 
-    real_returns.push((end_date, temp.1)); // stretch returns to today
-    real_returns.insert(0, (start_date, (0.0001, 0.0001)));              // stretch returns to root day
-    stats::interpolate(&mut real_returns);                         // stretch to correspond to # of days
+    real_returns.push((end_date, temp.1));                             // stretch returns to today
+    real_returns.insert(0, (start_date, (0.0001, 0.0001)));            // stretch returns to root day
+    stats::interpolate(&mut real_returns);                             // stretch to correspond to # of days
     let real_returns_abs: Vec<(NaiveDate, f32)> = real_returns.clone().into_iter().map(|(date, (cb, mv))|(date, ((mv - cb) as f32))).collect();
 
     // switches tuple (market val, cost basis) into single (real_return)
@@ -230,7 +230,6 @@ fn main() {
 
 
     // MONEY-WEIGHTED RETURNS #################################
-
     // let file = File::create("test.json").expect("could not create test file");
     // serde_json::to_writer(&file, &cash_flows).unwrap();
 
@@ -238,26 +237,30 @@ fn main() {
     // serde_json::to_writer(&file, &cb_mv_history).unwrap();
 
     let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
-
-    let cb_mv_history = hashmap_to_sorted_vec(cb_mv_history);
-
-    
+    let cb_mv_history = hashmap_to_btree(cb_mv_history);
+    let cash_flows = hashmap_to_btree(cash_flows);
+    let mut default_mwrr: f64 = 0.0;    // value to fallback to if mwrr algorithm doesn't converge.
 
     for (date, (_, mv)) in cb_mv_history.iter() {
-        let mut cash_flows_plus_mv = cash_flows.clone();
-        cash_flows_plus_mv.entry(*date).and_modify(|cf| *cf += mv).or_insert(*mv);
-        let cash_flows_plus_mv = &hashmap_to_sorted_vec(cash_flows_plus_mv)
-        .iter()
-        .take_while(|(d, _)| *d <= *date)
-        .cloned()
+
+        // this range + map allows to clone only what is needed for this iteration, i.e. cash_flows[:date]
+        // not including cash flows from date itself. otherwise stock sells get double counted as cf and as mv
+        let mut cash_flows_plus_mv: Vec<(NaiveDate, f64)> = cash_flows.range(..=date) //+ Days::new(1)
+        .map(|(k, v)| (k.clone(), *v))
         .collect();
 
-        let irr = mwrr(&cash_flows_plus_mv, 0.5).unwrap_or(0.0) * 100.0;
-        mwrr_returns.push((*date, irr as f32));
+        // add today's market value as a cash inflow
+        if let Some((_, value)) = cash_flows_plus_mv.iter_mut().next_back() {
+        *value += mv
+        };
 
-    };
-    plotter::display_to_console(&mwrr_returns, cb_mv_history.first().unwrap().0,
-        cb_mv_history.last().unwrap().0,
+        let irr = mwrr(&cash_flows_plus_mv, 0.5).unwrap_or(default_mwrr) * 100.0;
+        mwrr_returns.push((*date, irr as f32));
+        default_mwrr = irr/100.0;
+    }
+
+    plotter::display_to_console(&mwrr_returns, *cb_mv_history.first_key_value().unwrap().0,
+        *cb_mv_history.last_key_value().unwrap().0,
         70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
     // ########################################################
 
@@ -465,30 +468,36 @@ fn do_stuff(){
     let file = File::open("test2.json").unwrap();
     let reader = BufReader::new(file);
     let cb_mv_history: HashMap<NaiveDate, (f64, f64)> = serde_json::from_reader(reader).unwrap();
-
     let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
 
-    let cb_mv_history = hashmap_to_sorted_vec(cb_mv_history);
+    let cb_mv_history = hashmap_to_btree(cb_mv_history);
+    let cash_flows = hashmap_to_btree(cash_flows);
+
+    let mut default_mwrr: f64 = 0.0;    // value to fallback to if mwrr algorithm doesn't converge.
 
 
     for (date, (_, mv)) in cb_mv_history.iter() {
-        let mut cash_flows_plus_mv = cash_flows.clone();
-        cash_flows_plus_mv.entry(*date).and_modify(|cf| *cf += mv).or_insert(*mv);
-        let cash_flows_plus_mv = &hashmap_to_sorted_vec(cash_flows_plus_mv)
-        .iter()
-        .take_while(|(d, _)| *d <= *date)
-        .cloned()
+
+        // this range + map allows to clone only what is needed for this iteration, i.e. cash_flows[:date]
+        let mut cash_flows_plus_mv: Vec<(NaiveDate, f64)> = cash_flows.range(..=date) //+ Days::new(2)
+        .map(|(k, v)| (k.clone(), *v))
         .collect();
 
-        let irr = mwrr(&cash_flows_plus_mv, 0.5).unwrap_or(0.0) * 100.0;
-        mwrr_returns.push((*date, irr as f32));
+        // add today's market value as a cash inflow
+        if let Some((_, value)) = cash_flows_plus_mv.iter_mut().next_back() {
+        *value += mv
+        };
 
-    };
-    plotter::display_to_console(&mwrr_returns, cb_mv_history.first().unwrap().0,
-        cb_mv_history.last().unwrap().0,
+        let irr = mwrr(&cash_flows_plus_mv, 0.5).unwrap_or(default_mwrr) * 100.0;
+        mwrr_returns.push((*date, irr as f32));
+        default_mwrr = irr/100.0;
+    }
+
+    plotter::display_to_console(&mwrr_returns, *cb_mv_history.first_key_value().unwrap().0,
+        *cb_mv_history.last_key_value().unwrap().0,
         70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
     // // let cash_flows = serde_json::to_vec_pretty(&file);
     // let file = File::create("test.json").expect("could not create test file");
     // serde_json::to_writer(&file, &cash_flows);
     // println!("XIRRRRRRRRRRRRRRRRRRRRRRR with no divis = {:.6}%", mwrr(&cash_flows, 0.5).expect("the xirr failed, not the interpolate") * 100.0);
-}
+    }
