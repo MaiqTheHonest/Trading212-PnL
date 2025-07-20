@@ -1,5 +1,5 @@
 use chrono::{Days, NaiveDate};
-use std::{collections::HashMap, f32::INFINITY};
+use std::{collections::{HashMap, BTreeMap}, f32::INFINITY};
 
 
 const RISK_FREE_RATE: f32 = 0.03;
@@ -94,6 +94,16 @@ pub fn hashmap_to_sorted_vec<T>(hashmap: HashMap<NaiveDate, T>) -> Vec<(NaiveDat
     vec.sort_by_key(|(date, _)| *date);               // sort by naivedate
     
     vec
+}
+
+
+
+pub fn hashmap_to_btree<T>(hashmap: HashMap<NaiveDate, T>) -> BTreeMap<NaiveDate, T> {
+    
+    let btm: BTreeMap<NaiveDate, T> = hashmap.into_iter().collect();
+    
+    
+    btm
 }
 
 

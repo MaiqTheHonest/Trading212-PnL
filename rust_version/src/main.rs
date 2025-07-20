@@ -10,12 +10,14 @@ use std::collections::HashSet;
 use crate::{stats::{hashmap_to_sorted_vec, mwrr}, t212::Order};
 use std::io::{self, Write, BufReader};
 use std::process::Command;
+use std::fs;
 
 
 fn main() {
 
     // GETTING ORDERS AND ACTIVE TIME RANGE ###################
-    let mut data = match t212::get_orders() {
+    let api_key: String = fs::read_to_string("api_key.txt").expect("could not find api_key.txt").split_whitespace().collect();
+    let mut data = match t212::get_orders(&api_key) {
         Ok(v) => {
             if v.is_empty(){
                 println!("Error: invalid API key or new account with 0 orders");
@@ -36,7 +38,7 @@ fn main() {
     data.reverse();
 
     // duplicates occur from T212 treating partially filled orders as fully filled
-    // so we just remove them. this introduces miniscule price incorrection
+    // so we just remove them. this introduces price incorrection but partial fills are rare at T212
     remove_duplicates(&mut data);    
     
     
@@ -97,7 +99,7 @@ fn main() {
     let mut complete_prices: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     // get dividends to be passed into return calculation
-    let total_dividends: f64 = dividends::get_dividends().expect("could not fetch dividends");
+    let total_dividends: f64 = dividends::get_dividends(&api_key).expect("could not fetch dividends");
     // #########################################################
 
 
@@ -229,24 +231,17 @@ fn main() {
 
     // MONEY-WEIGHTED RETURNS #################################
 
-
-
-
-
     // let file = File::create("test.json").expect("could not create test file");
     // serde_json::to_writer(&file, &cash_flows).unwrap();
 
     // let file = File::create("test2.json").expect("could not create test file");
     // serde_json::to_writer(&file, &cb_mv_history).unwrap();
-    
-
-
-
 
     let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
 
     let cb_mv_history = hashmap_to_sorted_vec(cb_mv_history);
 
+    
 
     for (date, (_, mv)) in cb_mv_history.iter() {
         let mut cash_flows_plus_mv = cash_flows.clone();

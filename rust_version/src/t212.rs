@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use std::error::Error;
-use std::fs;
 use chrono::DateTime;
 use serde::{Deserialize, Deserializer};
 use std::{thread, time::Duration};
@@ -11,7 +10,7 @@ use std::{thread, time::Duration};
 
 
 #[tokio::main]
-pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
+pub async fn get_orders(api_key: &str) -> Result<Vec<Order>, Box<dyn Error>> {
 
     let mut data = Vec::<Order>::new();
     let mut cursor = String::from("");    // start with empty cursor
@@ -19,7 +18,7 @@ pub async fn get_orders() -> Result<Vec<Order>, Box<dyn Error>> {
 
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
-        let api_response = recursive_call_api("https://live.trading212.com/api/v0/equity/history/orders", &cursor, ResponseType::Orders).await;
+        let api_response = recursive_call_api(&api_key, "https://live.trading212.com/api/v0/equity/history/orders", &cursor, ResponseType::Orders).await;
         // println!("{:?}", api_response);
 
 
@@ -105,10 +104,9 @@ fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> whe
 
 
 // returns a CallResponse which can be either an Orders or a Dividends variant
-pub async fn recursive_call_api(api_url: &str, current_cursor: &String, response_type: ResponseType) -> Result<CallResponse, Box<dyn Error>>{
+pub async fn recursive_call_api(api_key: &str, api_url: &str, current_cursor: &String, response_type: ResponseType) -> Result<CallResponse, Box<dyn Error>>{
  
-    let api_key = fs::read_to_string("api_key.txt")
-    .expect("could not find api_key.txt");
+
 
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&api_key)?);
@@ -138,7 +136,7 @@ pub async fn recursive_call_api(api_url: &str, current_cursor: &String, response
     } else {
         if response.status().as_str().contains("429"){  // 429 means too many requests
             countdown(60);
-            let d2_response = Box::pin(recursive_call_api(api_url, current_cursor, response_type)).await;  // Box::pin because Rust doesn't allow recursive async funcs that are not boxed
+            let d2_response = Box::pin(recursive_call_api(&api_key, api_url, current_cursor, response_type)).await;  // Box::pin because Rust doesn't allow recursive async funcs that are not boxed
             return d2_response
         } else {
             Err(format!("API call failed: {}", response.status()).into())

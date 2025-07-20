@@ -9,7 +9,7 @@ use crate::t212::{recursive_call_api, extract_unix, CallResponse, Dividend, Divi
 
 
 #[tokio::main]
-pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
+pub async fn get_dividends(api_key: &str) -> Result<f64, Box<dyn Error>> {
 
     let mut data = Vec::<Dividend>::new();
     let mut cursor = String::from("");    // start with empty cursor
@@ -17,8 +17,9 @@ pub async fn get_dividends() -> Result<f64, Box<dyn Error>> {
 
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
-        let api_response = recursive_call_api("https://live.trading212.com/api/v0/history/dividends", &cursor, ResponseType::Divis).await;
+        let api_response = recursive_call_api(&api_key, "https://live.trading212.com/api/v0/history/dividends", &cursor, ResponseType::Divis).await;
         // println!("{:?}", &api_response);
+
 
         (cursor, dividends) = match api_response {   // process_items returns a tuple so we catch both cursor
             Ok(CallResponse::Divis(items)) => process_items(items),            // and orders in this match
