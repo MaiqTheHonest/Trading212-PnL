@@ -1,19 +1,19 @@
-Rust program to extract the full order history, backtrace and synthesize the portfolio history from it, and calculate unrealized PnL, APR, average daily return and Sharpe ratio using the buggy Trading212 API.
+Rust CLI tool for Trading 212 portoflio analysis.
 
-T212 allows **6x50** requests per minute => time delay for portfolio histories with more than 300 orders.
+Clarifies (un)realised P&L, money-weighted returns, dividends and calculates a few other metrics.
 
-<br />
+Trading 212 API allows **6x50** requests per minute, so mind the 1 minute wait if you have more than 300 orders.
 
-`main => {t212, yahoo, plotter, dividends, stats}`
 
-<br />
 
 ![t212](https://github.com/user-attachments/assets/ce817dbd-9268-4380-aa27-f51f6b5161db)
 
 
+<img width="783" height="697" alt="image" src="https://github.com/user-attachments/assets/fa951695-e5ea-410f-aca3-43d903f9e070" />
 
 
-Thank you to [loony-bean](https://github.com/loony-bean) for `textplots`  (you should add x_tick customisation).
+
+Thank you [loony-bean](https://github.com/loony-bean) for `textplots`.
 
 
 
@@ -21,7 +21,7 @@ Thank you to [loony-bean](https://github.com/loony-bean) for `textplots`  (you s
 ## Usage
 
 
-Place a `.txt` file with your valid Trading212 API key (no spaces) into the same folder as `t212.exe` and launch executable (ideally via PowerShell or any other terminal that supports colour and UTF-8).
+Place a `.txt` file with your valid Trading212 API key into the same folder as `t212.exe` and launch executable (ideally via PowerShell or any other terminal that supports colour and UTF-8).
 
 
 <br />
