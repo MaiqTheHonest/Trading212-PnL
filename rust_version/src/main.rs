@@ -173,7 +173,7 @@ fn main() {
     let mut cum_dividends = hashmap_to_sorted_vec(cum_dividends);
     interpolate(&mut cum_dividends);
 
-    println!("{:#?}", dividend_library);
+    // println!("{:#?}", dividend_library);
     // #########################################################
 
 
@@ -322,7 +322,7 @@ fn main() {
     let annual_return = ((*current_return/100.0 + 1.0).powf(1.0/(&years_held)) - 1.0) * 100.0;
     let daily_returns: Vec<f32> = stats::get_daily_returns(just_returns.clone());
     let (mean, sd, sharpe) = stats::mean_sd_sharpe(&daily_returns);
-    
+    let dividend_yield: f64 = total_dividends / ((cb_mv_history.values().map(|(cb, _)| *cb as f64).sum::<f64>()) / (days_held as f64)) / (years_held as f64) * 100.0;
     printallcommands();
     
     loop {
@@ -370,6 +370,7 @@ fn main() {
                     println!("{0: <12}             {1:>.2}", ticker, divi)
                 };
                 println!("______________________________________");
+                println!("dividend yield on cost (annual): {:.2}%", dividend_yield);
             }
 
             "/q" => {println!("Quitting...");
