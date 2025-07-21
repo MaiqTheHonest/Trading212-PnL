@@ -7,10 +7,11 @@ use rgb::RGB8;
 use chrono::{Datelike, Days, Duration, NaiveDate, Utc};
 use std::{collections::{hash_map::Entry, BTreeMap, HashMap}, default, error::Error, fs::File, io::Read, process, str::FromStr};
 use std::collections::HashSet;
-use crate::{stats::{hashmap_to_btree, hashmap_to_sorted_vec, mwrr}, t212::{Dividend, Order}};
+use crate::{stats::{hashmap_to_btree, hashmap_to_sorted_vec, interpolate, mwrr}, t212::{Dividend, Order}};
 use std::io::{self, Write, BufReader};
 use std::process::Command;
 use std::fs;
+use plotter::*;
 
 
 fn main() {
@@ -99,7 +100,8 @@ fn main() {
     let mut complete_prices: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     // get dividends to be passed into return calculation
-    let dividend_history = dividends::get_dividends(&api_key).expect("could not fetch dividends");
+    let mut dividend_history = dividends::get_dividends(&api_key).expect("could not fetch dividends");
+    dividend_history.reverse();
 
     // initialize storage of each ticker's total dividends
     let mut dividend_library: HashMap<String, f64> = HashMap::new();
@@ -153,6 +155,7 @@ fn main() {
     // PARSING DIVIDENDS #######################################
     let mut blarg: BTreeMap<NaiveDate, f64> = BTreeMap::new();
     let mut total_dividends: f64 = 0.0;
+    let mut cum_dividends: HashMap<NaiveDate, f32> = HashMap::new();
 
     for dividend in dividend_history{
         let date = match NaiveDate::from_str(&dividend.paidOn) {
@@ -164,8 +167,12 @@ fn main() {
         dividend_library.entry(dividend.ticker).and_modify(|cf| *cf += amount).or_insert(amount);
         blarg.entry(date).and_modify(|cf| *cf += amount).or_insert(amount);
         total_dividends += amount;
+        cum_dividends.entry(date).insert_entry(total_dividends as f32);
     }
     let dividend_history: BTreeMap<NaiveDate, f64> = blarg;
+    let mut cum_dividends = hashmap_to_sorted_vec(cum_dividends);
+    interpolate(&mut cum_dividends);
+
     println!("{:#?}", dividend_library);
     // #########################################################
 
@@ -289,10 +296,6 @@ fn main() {
         //     println!("{:?}", portfolio_history.get(date).unwrap())
         // }
     }
-
-    plotter::display_to_console(&mwrr_returns, *cb_mv_history.first_key_value().unwrap().0,
-        *cb_mv_history.last_key_value().unwrap().0,
-        70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
     // ########################################################
 
 
@@ -310,12 +313,11 @@ fn main() {
     if cfg!(target_os = "windows") {
         let _ = Command::new("chcp").arg("65001").status();
     }
-
+    
     println!("\nUnrealized return, %");
-    plotter::display_to_console(&return_history, start_date, end_date, 70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
+    display_to_console(&return_history, start_date, end_date, 70, 10.0, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
     
     let just_returns: Vec<f32> = stats::strip_dates(return_history);
-    
     let current_return = &just_returns.last().unwrap();
     let annual_return = ((*current_return/100.0 + 1.0).powf(1.0/(&years_held)) - 1.0) * 100.0;
     let daily_returns: Vec<f32> = stats::get_daily_returns(just_returns.clone());
@@ -330,7 +332,7 @@ fn main() {
         
         match command {
             "/s" => {
-                clear_last_n_lines(4);
+                clear_last_n_lines(5);
                 println!(" _________________________________________");
                 println!("|                       |                 |");
                 println!("| {0: <21} | {1: <15.4} | ", "unrealised PnL(%)", current_return);
@@ -343,13 +345,32 @@ fn main() {
                 println!("|                       |                 |");
                 println!("| {0: <21} | {1: <15.4} | ", "daily avg. return(%)", mean);
                 println!("|                       |                 |");
-                println!(" ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");
-                printallcommands();            
+                println!(" ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");          
             },
-            "/r" => {clear_last_n_lines(4);
+            "/r" => {clear_last_n_lines(6);
                 println!("\nAbsolute realized return, GBP");
-                plotter::display_to_console(&real_returns_abs, start_date, end_date, 40, RGB8::new(255, 51, 255), String::from_str(" GBP").unwrap());
-                printallcommands()},
+                display_to_console(&real_returns_abs, start_date, end_date, 40, 10.0, RGB8::new(255, 51, 255), String::from_str(" GBP").unwrap());
+            },
+                
+                "/m" =>     {clear_last_n_lines(6);
+                println!("\nMoney-Weighted Rate of Return (MWRR), %");
+                display_to_console(&mwrr_returns, 
+                *cb_mv_history.first_key_value().unwrap().0,
+                *cb_mv_history.last_key_value().unwrap().0,
+                70, 10.0, RGB8::new(254, 245, 116), String::from_str("%").unwrap());  
+            },
+
+            "/d" => {clear_last_n_lines(6);
+                println!("\nTotal dividends, GBP");
+                display_to_console(&cum_dividends, cum_dividends.first().unwrap().0, end_date, 40, 0.0, RGB8::new(0, 255, 138), String::from(" GBP"));
+                println!("\n______________________________________");
+                println!("ticker:          total dividends (GBP)");
+                println!("‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
+                for (ticker, divi) in dividend_library.iter(){
+                    println!("{0: <12}             {1:>.2}", ticker, divi)
+                };
+                println!("______________________________________");
+            }
 
             "/q" => {println!("Quitting...");
                 break},
@@ -357,6 +378,7 @@ fn main() {
             "" => println!("Enter valid command or /q to quit."),
             _ => println!("Unknown command: {}", command),
         }
+        printallcommands()
     }
 }
 // ########################################################
@@ -468,24 +490,6 @@ fn process_order(
 
 
 
-fn printallcommands() {
-    println!("/s      view portfolio statistics");
-    println!("/r      view realized returns");
-    println!("/q      quit");
-}
-
-
-
-fn clear_last_n_lines(n: u8) {
-    let mut stdout = io::stdout();
-    for _ in 0..n {
-        // move cursor up a line
-        write!(stdout, "\x1B[1A").unwrap();
-        // clear the line
-        write!(stdout, "\x1B[2K").unwrap();
-    }
-    stdout.flush().unwrap();
-}
 
 
 
@@ -524,9 +528,9 @@ fn do_stuff(){
         default_mwrr = irr/100.0;
     }
 
-    plotter::display_to_console(&mwrr_returns, *cb_mv_history.first_key_value().unwrap().0,
+    display_to_console(&mwrr_returns, *cb_mv_history.first_key_value().unwrap().0,
         *cb_mv_history.last_key_value().unwrap().0,
-        70, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
+        70, 10.0, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
     // // let cash_flows = serde_json::to_vec_pretty(&file);
     // let file = File::create("test.json").expect("could not create test file");
     // serde_json::to_writer(&file, &cash_flows);

@@ -1,7 +1,7 @@
 use rgb::RGB8;
 use textplots::{Chart, ColorPlot, LabelBuilder, LabelFormat, Shape, TickDisplay, TickDisplayBuilder};
 use chrono::{Duration, NaiveDate};
-
+use std::io::{self, Write};
 
 
 pub fn display_to_console(
@@ -9,6 +9,7 @@ pub fn display_to_console(
     start_date: NaiveDate,
     end_date: NaiveDate,
     size: u32,
+    y_offset: f32,
     colour: RGB8,
     units: String) {
 
@@ -43,7 +44,7 @@ pub fn display_to_console(
     
 
 
-    Chart::new_with_y_range(3*size, 2*size, points.last().unwrap().0/-25.0, points.last().unwrap().0/1.0, myround(ymin, 5.0)-10.0, myround(ymax, 5.0)+10.0)
+    Chart::new_with_y_range(3*size, 2*size, points.last().unwrap().0/-25.0, points.last().unwrap().0/1.0, myround(ymin, 5.0)-y_offset, myround(ymax, 5.0)+10.0)
         .linecolorplot(&Shape::Lines(&points), colour)
         .x_label_format(LabelFormat::Custom(Box::new(move |val| {
             if val <= 1.0 { format!("  {}{}{}", start_date.to_string(), (0..(size*2/3 - 10)).map(|_| " ").collect::<String>(), mid_date.to_string()) } 
@@ -55,5 +56,27 @@ pub fn display_to_console(
         .y_tick_display(TickDisplay::Dense)
         .nice();
 
+}
+
+
+
+
+pub fn printallcommands() {
+    println!("\n/s      view portfolio statistics            /m      view MWRR (Trading 212 returns)");
+    println!("/r      view realized returns                /d      view dividend statistics");
+    println!("/q      quit\n");
+}
+
+
+
+pub fn clear_last_n_lines(n: u8) {
+    let mut stdout = io::stdout();
+    for _ in 0..n {
+        // move cursor up a line
+        write!(stdout, "\x1B[1A").unwrap();
+        // clear the line
+        write!(stdout, "\x1B[2K").unwrap();
+    }
+    stdout.flush().unwrap();
 }
 
