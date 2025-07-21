@@ -9,7 +9,7 @@ Trading 212 API allows **6x50** requests per minute, so mind the 1 minute wait i
 ![t212](https://github.com/user-attachments/assets/ce817dbd-9268-4380-aa27-f51f6b5161db)
 
 
-<img width="783" height="697" alt="image" src="https://github.com/user-attachments/assets/fa951695-e5ea-410f-aca3-43d903f9e070" />
+<img width="568.7" height="495" alt="image" src="https://github.com/user-attachments/assets/fa951695-e5ea-410f-aca3-43d903f9e070" />
 
 
 
