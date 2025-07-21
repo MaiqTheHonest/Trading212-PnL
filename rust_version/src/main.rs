@@ -7,7 +7,7 @@ use rgb::RGB8;
 use chrono::{Days, Duration, NaiveDate, Utc};
 use std::{collections::{hash_map::Entry, BTreeMap, HashMap}, default, error::Error, fs::File, io::Read, process, str::FromStr};
 use std::collections::HashSet;
-use crate::{stats::{hashmap_to_sorted_vec, hashmap_to_btree, mwrr}, t212::Order};
+use crate::{stats::{hashmap_to_btree, hashmap_to_sorted_vec, mwrr}, t212::{Dividend, Order}};
 use std::io::{self, Write, BufReader};
 use std::process::Command;
 use std::fs;
@@ -99,7 +99,7 @@ fn main() {
     let mut complete_prices: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     // get dividends to be passed into return calculation
-    let total_dividends: f64 = dividends::get_dividends(&api_key).expect("could not fetch dividends");
+    let (dividend_history, total_dividends) = dividends::get_dividends(&api_key).expect("could not fetch dividends");
     // #########################################################
 
 
@@ -144,6 +144,15 @@ fn main() {
     // #########################################################
 
     
+    // PARSING DIVIDENDS #######################################
+    for dividend in dividend_history{
+        let date = match NaiveDate::from_str(&dividend.paidOn) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        cash_flows.entry(date).and_modify(|cf| *cf += dividend.amount).or_insert(dividend.amount);
+    }
+    // #########################################################
 
 
 
@@ -230,6 +239,7 @@ fn main() {
 
 
     // MONEY-WEIGHTED RETURNS #################################
+
     // let file = File::create("test.json").expect("could not create test file");
     // serde_json::to_writer(&file, &cash_flows).unwrap();
 

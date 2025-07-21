@@ -9,7 +9,7 @@ use crate::t212::{recursive_call_api, extract_unix, CallResponse, Dividend, Divi
 
 
 #[tokio::main]
-pub async fn get_dividends(api_key: &str) -> Result<f64, Box<dyn Error>> {
+pub async fn get_dividends(api_key: &str) -> Result<(Vec::<Dividend>,f64), Box<dyn Error>> {
 
     let mut data = Vec::<Dividend>::new();
     let mut cursor = String::from("");    // start with empty cursor
@@ -44,7 +44,7 @@ pub async fn get_dividends(api_key: &str) -> Result<f64, Box<dyn Error>> {
 
     // multiply by GBP:USD exchange rate as dividends are always GBP for UK accounts
 
-    Ok(total_dividends)
+    Ok((data, total_dividends))
 }
 
 
