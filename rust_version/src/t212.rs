@@ -37,7 +37,7 @@ pub async fn get_orders(api_key: &str) -> Result<Vec<Order>, Box<dyn Error>> {
     
     
     for item in &mut data {
-        item.dateCreated = item.dateCreated.chars().take(10).collect();    // convert date to daily
+        item.dateModified = item.dateModified.chars().take(10).collect();    // convert date to daily
     }
 
     Ok(data)
@@ -56,7 +56,7 @@ pub struct Items {
 pub struct Order {                                            // both the struct and fields have to be public to be accessed in main
     pub id: u64,
     pub ticker: String,
-    pub dateCreated: String,
+    pub dateModified: String,
 
     #[serde(deserialize_with = "deserialize_null_fields")]    // custom deserialize routine to fill occasional nulls.
     pub filledQuantity: f64,                                  // happens because .json has implementation for null,
@@ -86,6 +86,7 @@ pub struct Dividend {
 }
 
 // enum to hold the other struct types
+#[derive(Debug)]
 pub enum CallResponse {
     Orders(Items), // orders
     Divis(Dividends)
@@ -149,7 +150,7 @@ pub async fn recursive_call_api(api_key: &str, api_url: &str, current_cursor: &S
 
 fn process_items(orders: Items) -> (String, Vec<Order>) {
                                                 //vvv if none then none, if some then use in this closure  
-    let timestamp = match orders.items.last().and_then(|order| extract_unix(&order.dateCreated)) {
+    let timestamp = match orders.items.last().and_then(|order| extract_unix(&order.dateModified)) {
         Some(v) => v,                       // if it worked, return unix timestamp as cursor 
         None => String::from("complete")    // it it didn't, return "complete" as cursor 
     };

@@ -1,6 +1,8 @@
 use chrono::{Days, NaiveDate};
 use std::{collections::{HashMap, BTreeMap}, f32::INFINITY};
 
+use crate::t212::Dividend;
+
 
 const RISK_FREE_RATE: f32 = 0.03;
 const N_MARKET_DAYS: f32 = 252.0;
@@ -9,29 +11,23 @@ const N_MARKET_DAYS: f32 = 252.0;
 
 // unrealized, non-TWR, non-MWR
 pub fn calc_unreal_returns(
-    portfolio_history: Vec<(NaiveDate, HashMap<String, (f64, f64)>)>,
+    portfolio_history: &Vec<(NaiveDate, HashMap<String, (f64, f64)>)>,
     complete_prices: HashMap<String, HashMap<NaiveDate, f64>>,
-    total_dividends: f64
+    dividend_history: BTreeMap<NaiveDate, f64>
 
     ) -> Option<(HashMap<NaiveDate, f64>, HashMap<NaiveDate, (f64, f64)>)> {
 
     let mut return_history: HashMap<NaiveDate, f64> = HashMap::new();
     let mut portfolio = portfolio_history[0].1.clone();
     let mut cb_mv_history: HashMap<NaiveDate, (f64, f64)> = HashMap::new();
-
-    let mut volume_total: f64 = 0.0;
-    let mut volume_covered: f64 = 0.0;
-
+    
 
     // this first loop is to calculate total volume
-    for tupleobject in &portfolio_history {
+    for tupleobject in portfolio_history {
 
         if tupleobject.1.is_empty() == false{
             portfolio = tupleobject.clone().1;
         }else{}
-        for (ticker, (q_0, p_0)) in &portfolio {
-            volume_total += q_0*p_0;
-        };
 
     };
 
@@ -44,7 +40,7 @@ pub fn calc_unreal_returns(
         let date: NaiveDate = tupleobject.0;
 
         if tupleobject.1.is_empty() == false{
-            portfolio = tupleobject.1;
+            portfolio = tupleobject.clone().1;
         }else{
           // pass, portfolio remains same as 1 day (iteration) before  
         };
@@ -72,9 +68,9 @@ pub fn calc_unreal_returns(
                 };
         };
 
-        volume_covered += cost_basis;
+        let total_dividends: f64 = dividend_history.range(..=date).map(|(_, v)| v).sum();
 
-        let daily_return = (100.0/cost_basis)*(sum_of_abs_returns + total_dividends*(volume_covered/volume_total));
+        let daily_return = (100.0/cost_basis)*(sum_of_abs_returns + total_dividends);
 
         return_history.insert(date, daily_return);
         cb_mv_history.insert(date, (cost_basis, market_val));    

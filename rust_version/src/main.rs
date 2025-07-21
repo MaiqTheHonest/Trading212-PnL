@@ -4,7 +4,7 @@ mod stats;
 mod dividends;
 mod plotter;
 use rgb::RGB8;
-use chrono::{Days, Duration, NaiveDate, Utc};
+use chrono::{Datelike, Days, Duration, NaiveDate, Utc};
 use std::{collections::{hash_map::Entry, BTreeMap, HashMap}, default, error::Error, fs::File, io::Read, process, str::FromStr};
 use std::collections::HashSet;
 use crate::{stats::{hashmap_to_btree, hashmap_to_sorted_vec, mwrr}, t212::{Dividend, Order}};
@@ -36,7 +36,7 @@ fn main() {
     // REVERSE IS IMPORTANT, as transactions arrive in inverse order
     // after this reverse(), time is aligned with vector index (ascending)
     data.reverse();
-
+    // println!("{:#?}", data.get(0..100));
     // duplicates occur from T212 treating partially filled orders as fully filled
     // so we just remove them. this introduces price incorrection but partial fills are rare at T212
     remove_duplicates(&mut data);    
@@ -99,7 +99,10 @@ fn main() {
     let mut complete_prices: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     // get dividends to be passed into return calculation
-    let (dividend_history, total_dividends) = dividends::get_dividends(&api_key).expect("could not fetch dividends");
+    let dividend_history = dividends::get_dividends(&api_key).expect("could not fetch dividends");
+
+    // initialize storage of each ticker's total dividends
+    let mut dividend_library: HashMap<String, f64> = HashMap::new();
     // #########################################################
 
 
@@ -109,7 +112,7 @@ fn main() {
     // PARSING, FILTERING AND FORMATTING ORDERS ################
     for order in &mut data {
 
-        let matcher_date = NaiveDate::from_str(&order.dateCreated).expect("couldn't parse dateCreated: invalid date format");
+        let matcher_date = NaiveDate::from_str(&order.dateModified).expect("couldn't parse dateModified: invalid date format");
 
         // zero filledQuantity means it was a "value" order e.g. "buy £100 of AAPL" instead of "buy 0.5 AAPL at £200"
         // so we need to translate value into quantities. "l_EQ" means a transaction on LSE so it is quoted in pennies
@@ -144,15 +147,29 @@ fn main() {
     // #########################################################
 
     
+
+
+
     // PARSING DIVIDENDS #######################################
+    let mut blarg: BTreeMap<NaiveDate, f64> = BTreeMap::new();
+    let mut total_dividends: f64 = 0.0;
+
     for dividend in dividend_history{
         let date = match NaiveDate::from_str(&dividend.paidOn) {
             Ok(v) => v,
             Err(_) => continue,
         };
-        cash_flows.entry(date).and_modify(|cf| *cf += dividend.amount).or_insert(dividend.amount);
+        let amount = dividend.amount;
+        cash_flows.entry(date).and_modify(|cf| *cf += amount).or_insert(amount);
+        dividend_library.entry(dividend.ticker).and_modify(|cf| *cf += amount).or_insert(amount);
+        blarg.entry(date).and_modify(|cf| *cf += amount).or_insert(amount);
+        total_dividends += amount;
     }
+    let dividend_history: BTreeMap<NaiveDate, f64> = blarg;
+    println!("{:#?}", dividend_library);
     // #########################################################
+
+
 
 
 
@@ -185,7 +202,7 @@ fn main() {
     // UNREALISED RETURNS ######################################
     // portfolio_history is "sparse", so days where it wasn't changed are empty
     // calculate_returns will just infer that empty day portfolio is same as last modified day's one
-    let (return_history, cb_mv_history) = match stats::calc_unreal_returns(portfolio_history, complete_prices, total_dividends) {
+    let (return_history, cb_mv_history) = match stats::calc_unreal_returns(&portfolio_history, complete_prices, dividend_history) {
         Some((v, b)) => (v,b),
         None => panic!("Calculating returns failed, check dividends arrived")
     };
@@ -195,7 +212,6 @@ fn main() {
     .into_iter()
     .map(|(date, val)| (date, val as f32))  // convert to f32 for plotters module
     .collect();
-
     // irrelevant atm: benchmark and absolute cb and mv for beta and other stats to add in the future
     // let cb_mv_history: Vec<(NaiveDate, (f64, f64))> = stats::hashmap_to_sorted_vec(cb_mv_history);
     // let (_, _cb_mv_history): (Vec<_>, Vec<(f64, f64)>) = cb_mv_history.into_iter().unzip();
@@ -267,6 +283,11 @@ fn main() {
         let irr = mwrr(&cash_flows_plus_mv, 0.5).unwrap_or(default_mwrr) * 100.0;
         mwrr_returns.push((*date, irr as f32));
         default_mwrr = irr/100.0;
+        // let portfolio_history: HashMap<NaiveDate, HashMap<String, (f64, f64)>> = portfolio_history.clone().into_iter().collect();
+        // if irr > 20.0 || (date.year_ce() == (true, 2023) && date.month0() == 9){
+        //     println!("date: {:?}, r: {:?}, mv: {:?}", date, irr, mv);
+        //     println!("{:?}", portfolio_history.get(date).unwrap())
+        // }
     }
 
     plotter::display_to_console(&mwrr_returns, *cb_mv_history.first_key_value().unwrap().0,
@@ -354,7 +375,7 @@ fn remove_duplicates(orders: &mut Vec<Order>) {
 
 fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
     
-    let root_date = data.first().ok_or("couldn't get first order")?.dateCreated.as_str();    
+    let root_date = data.first().ok_or("couldn't get first order")?.dateModified.as_str();    
 
     // ^^^ last() returns an option, ok_or converts it to result, "?" propagates the error
 
@@ -385,7 +406,7 @@ fn process_order(
 
     let q_1 = order.filledQuantity;
     let p_1 = order.fillPrice;
-    let date = NaiveDate::from_str(order.dateCreated.as_str()).unwrap();
+    let date = NaiveDate::from_str(order.dateModified.as_str()).unwrap();
     let ticker = order.ticker.clone();
     
     // log the order as a cash flow
