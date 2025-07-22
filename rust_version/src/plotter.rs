@@ -62,9 +62,9 @@ pub fn display_to_console(
 
 
 pub fn printallcommands() {
-    println!("\n/s      view portfolio statistics            /m      view MWRR (Trading 212 returns)");
-    println!("/r      view realized returns                /d      view dividend statistics");
-    println!("/q      quit\n");
+    println!("\n  /s      view portfolio statistics            /m      view MWRR (Trading 212 returns)");
+    println!("  /r      view realized returns                /d      view dividend statistics");
+    println!("  /q      quit\n");
 }
 
 
