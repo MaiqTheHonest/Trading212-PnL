@@ -181,11 +181,11 @@ fn main() {
 
 
     // GETTING STOCK PRICES FROM YAHOO #########################
-    println!("\n ticker               lifetime:");
+    println!("\n  ticker               lifetime:");
     
     for (ticker, (date1, date2)) in ticker_history.into_iter()  {   // conversion is fine since order does not matter for price lookup
         
-        println!("{:?},from {:?} to {:?}", ticker, date1, date2);
+        println!("  {:?},from {:?} to {:?}", ticker, date1, date2);
         let mut single_ticker_history = match yahoo::get_prices(&ticker, date1, date2) {
             Ok(res) => res,
             Err(e) => panic!("Import from yahoo failed with error code: {}", e)
@@ -314,8 +314,8 @@ fn main() {
         let _ = Command::new("chcp").arg("65001").status();
     }
     
-    println!("\nUnrealized return, %");
-    display_to_console(&return_history, start_date, end_date, 70, 10.0, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
+    println!("\n  Unrealized return, %");
+    display_to_console(&return_history, start_date, end_date, 70, 10.0, RGB8::new(254, 255, 110), String::from_str("%").unwrap());
     
     let just_returns: Vec<f32> = stats::strip_dates(return_history);
     let current_return = &just_returns.last().unwrap();
@@ -333,51 +333,51 @@ fn main() {
         match command {
             "/s" => {
                 clear_last_n_lines(5);
-                println!(" _________________________________________");
-                println!("|                       |                 |");
-                println!("| {0: <21} | {1: <15.4} | ", "unrealised PnL(%)", current_return);
-                println!("|                       |                 |");
-                println!("| {0: <21} | {1: <15.4} | ", "APR(%)", annual_return);
-                println!("|                       |                 |");
-                println!("| {0: <21} | {1: <15.4} | ", "std. deviation", sd);
-                println!("|                       |                 |");
-                println!("| {0: <21} | {1: <15.4} | ", "Sharpe ratio", sharpe);
-                println!("|                       |                 |");
-                println!("| {0: <21} | {1: <15.4} | ", "daily avg. return(%)", mean);
-                println!("|                       |                 |");
-                println!(" ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");          
+                println!("   _________________________________________");
+                println!("  |                       |                 |");
+                println!("  | {0: <21} | {1: <15.4} | ", "unrealised PnL(%)", current_return);
+                println!("  |                       |                 |");
+                println!("  | {0: <21} | {1: <15.4} | ", "APR(%)", annual_return);
+                println!("  |                       |                 |");
+                println!("  | {0: <21} | {1: <15.4} | ", "std. deviation", sd);
+                println!("  |                       |                 |");
+                println!("  | {0: <21} | {1: <15.4} | ", "Sharpe ratio", sharpe);
+                println!("  |                       |                 |");
+                println!("  | {0: <21} | {1: <15.4} | ", "daily avg. return(%)", mean);
+                println!("  |                       |                 |");
+                println!("   ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");          
             },
             "/r" => {clear_last_n_lines(6);
-                println!("\nAbsolute realized return, GBP");
+                println!("\n  Absolute realized return, GBP");
                 display_to_console(&real_returns_abs, start_date, end_date, 40, 10.0, RGB8::new(255, 51, 255), String::from_str(" GBP").unwrap());
             },
                 
                 "/m" =>     {clear_last_n_lines(6);
-                println!("\nMoney-Weighted Rate of Return (MWRR), %");
+                println!("\n  Money-Weighted Rate of Return (MWRR), %");
                 display_to_console(&mwrr_returns, 
                 *cb_mv_history.first_key_value().unwrap().0,
                 *cb_mv_history.last_key_value().unwrap().0,
-                70, 10.0, RGB8::new(254, 245, 116), String::from_str("%").unwrap());  
+                70, 10.0, RGB8::new(22, 253, 254), String::from_str("%").unwrap());  
             },
 
             "/d" => {clear_last_n_lines(6);
-                println!("\nTotal dividends, GBP");
-                display_to_console(&cum_dividends, cum_dividends.first().unwrap().0, end_date, 40, 0.0, RGB8::new(0, 255, 138), String::from(" GBP"));
-                println!("\n______________________________________");
-                println!("ticker:          total dividends (GBP)");
-                println!("‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
+                println!("\n  Total dividends, GBP");
+                display_to_console(&cum_dividends, cum_dividends.first().unwrap().0, end_date, 40, 0.0, RGB8::new(0, 255, 0), String::from(" GBP"));
+                println!("\n  ______________________________________");
+                println!("  ticker:          total dividends (GBP)");
+                println!("  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
                 for (ticker, divi) in dividend_library.iter(){
-                    println!("{0: <12}             {1:>.2}", ticker, divi)
+                    println!("  {0: <12}             {1:>.2}", ticker, divi)
                 };
-                println!("______________________________________");
-                println!("dividend yield on cost (annual): {:.2}%", dividend_yield);
+                println!("  ______________________________________");
+                println!("  dividend yield on cost (annual): {:.2}%", dividend_yield);
             }
 
-            "/q" => {println!("Quitting...");
+            "/q" => {println!("  Quitting...");
                 break},
 
-            "" => println!("Enter valid command or /q to quit."),
-            _ => println!("Unknown command: {}", command),
+            "" => println!("  Enter valid command or /q to quit."),
+            _ => println!("  Unknown command: {}", command),
         }
         printallcommands()
     }
