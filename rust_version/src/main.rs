@@ -370,7 +370,10 @@ fn main() {
                     println!("  {0: <12}             {1:>.2}", ticker, divi)
                 };
                 println!("  ______________________________________");
+                println!("  Total:                   {:>.2}", total_dividends);
+                println!("  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
                 println!("  dividend yield on cost (annual): {:.2}%", dividend_yield);
+                println!("  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
             }
 
             "/q" => {println!("  Quitting...");
