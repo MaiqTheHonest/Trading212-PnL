@@ -5,24 +5,24 @@ mod dividends;
 mod plotter;
 use rgb::RGB8;
 use chrono::{Datelike, Days, Duration, NaiveDate, Utc};
-use std::{collections::{hash_map::Entry, BTreeMap, HashMap}, default, error::Error, fs::File, io::Read, process, str::FromStr};
+use std::{collections::{hash_map::Entry, BTreeMap, HashMap}, default, error::Error, fs::File, process, str::FromStr};
 use std::collections::HashSet;
 use crate::{stats::{hashmap_to_btree, hashmap_to_sorted_vec, interpolate, mwrr}, t212::{Dividend, Order}};
 use std::io::{self, Write, BufReader};
 use std::process::Command;
 use std::fs::{OpenOptions, read_to_string};
 use plotter::*;
-use serde_json::{from_reader, to_writer, Value};
+use serde_json::{from_reader, to_writer};
 
 fn main() {
 
-    // READING JSON WITH TICKER PAIRS #########################
+    // READING JSON WITH CUSTOM TICKERS #########################
     let path = "custom_tickers.json";
     let file = OpenOptions::new()
     .read(true)
     .write(true)
     .create(true)
-    .open(path).expect("json fail");
+    .open(path).expect("json reader fail");
 
     let mut custom_tickers: HashMap<String, String> = match from_reader(&file) {
         Ok(v) => v,
@@ -200,11 +200,11 @@ fn main() {
 
 
     // GETTING STOCK PRICES FROM YAHOO #########################
-    println!("\n  ticker               lifetime:");
+    println!("\n     ticker               lifetime:");
     
     for (ticker, (date1, date2)) in ticker_history.into_iter()  {   // conversion is fine since order does not matter for price lookup
         
-        println!("  {:?},from {:?} to {:?}", ticker, date1, date2);
+        println!("    {:?},from {:?} to {:?}", ticker, date1, date2);
         let mut single_ticker_history = match yahoo::get_prices(&ticker, date1, date2, &mut custom_tickers) {
             Ok(res) => res,
             Err(e) => panic!("Import from yahoo failed with error code: {}", e)
@@ -403,7 +403,18 @@ fn main() {
         }
         printallcommands()
     }
+
+    // save user-entered cutom tickers back to json file
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true) // ensures overwrite
+        .open(path)
+        .expect("json writer fail");
+
+    let _ = to_writer(file, &custom_tickers);
 }
+
 // ########################################################
 
 
