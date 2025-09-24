@@ -10,14 +10,33 @@ use std::collections::HashSet;
 use crate::{stats::{hashmap_to_btree, hashmap_to_sorted_vec, interpolate, mwrr}, t212::{Dividend, Order}};
 use std::io::{self, Write, BufReader};
 use std::process::Command;
-use std::fs;
+use std::fs::{OpenOptions, read_to_string};
 use plotter::*;
-
+use serde_json::{from_reader, to_writer, Value};
 
 fn main() {
 
+    // READING JSON WITH TICKER PAIRS #########################
+    let path = "custom_tickers.json";
+    let file = OpenOptions::new()
+    .read(true)
+    .write(true)
+    .create(true)
+    .open(path).expect("json fail");
+
+    let mut custom_tickers: HashMap<String, String> = match from_reader(&file) {
+        Ok(v) => v,
+        Err(_) => HashMap::new()
+    };
+    // ########################################################
+
+
+
+
+
     // GETTING ORDERS AND ACTIVE TIME RANGE ###################
-    let api_key: String = fs::read_to_string("api_key.txt").expect("could not find api_key.txt").split_whitespace().collect();
+    let api_key: String = read_to_string("api_key.txt").expect("could not find api_key.txt").split_whitespace().collect();
+
     let mut data = match t212::get_orders(&api_key) {
         Ok(v) => {
             if v.is_empty(){
@@ -63,7 +82,7 @@ fn main() {
     let mut fx_history: HashMap<String, HashMap<NaiveDate, f64>> = HashMap::new();
 
     for fx in fx_list {
-        let temp_history: HashMap<NaiveDate, f64> = match yahoo::get_prices(format!("{}=X", fx).as_str(), start_date - Duration::days(2), end_date) {
+        let temp_history: HashMap<NaiveDate, f64> = match yahoo::get_prices(format!("{}=X", fx).as_str(), start_date - Duration::days(2), end_date, &mut custom_tickers) {
             Ok(res) => res,
             Err(e) => panic!("FX import from yahoo failed: {e}")
         };
@@ -186,7 +205,7 @@ fn main() {
     for (ticker, (date1, date2)) in ticker_history.into_iter()  {   // conversion is fine since order does not matter for price lookup
         
         println!("  {:?},from {:?} to {:?}", ticker, date1, date2);
-        let mut single_ticker_history = match yahoo::get_prices(&ticker, date1, date2) {
+        let mut single_ticker_history = match yahoo::get_prices(&ticker, date1, date2, &mut custom_tickers) {
             Ok(res) => res,
             Err(e) => panic!("Import from yahoo failed with error code: {}", e)
         };
