@@ -15,7 +15,7 @@ textplots = "0.8"
 rgb = "0.8"
 futures = "0.3.31"
 rand = "0.9"
-
+textwrap = "0.16"
 
 [profile.release]
 opt-level = "z"  # Optimize for size.

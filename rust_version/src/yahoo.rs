@@ -4,58 +4,95 @@ use std::collections::HashMap;
 use reqwest::{Client, header::USER_AGENT};
 use serde_json::Value;
 use chrono::{Datelike, Duration, NaiveDate, TimeZone, Utc};
-
-
+use std::io;
+use textwrap::wrap;
+use crate::plotter::clear_last_n_lines;
 // accepts string slice with ticker passed to it from main
 
 #[tokio::main]
-pub async fn get_prices(symbol: &str, start_date: NaiveDate, end_date: NaiveDate) -> Result<HashMap<NaiveDate, f64>, Box<dyn std::error::Error>> {
+pub async fn get_prices(symbol: &str, start_date: NaiveDate, end_date: NaiveDate, custom_tickers: &mut HashMap<String, String>) -> Result<HashMap<NaiveDate, f64>, Box<dyn std::error::Error>> {
 
     // Convert dates to UNIX timestamps
+
     let start_timestamp = to_unix(start_date - Duration::days(1));    // move start_date back a day in case start_date is today
     let mut end_timestamp = to_unix(end_date);
 
     if start_timestamp == end_timestamp {
         end_timestamp += -86400;                          // move end_date back a day in case start and end are the same day now
     }
-    let url = format!(
-        "https://query1.finance.yahoo.com/v8/finance/chart/{}?period1={}&period2={}&interval=1d",
-        symbol, start_timestamp, end_timestamp
-    );
-
-    let client = Client::new();
-    let response = client.get(&url)
-        .header(USER_AGENT, "Mozilla/5.0") // Prevents blocking by Yahoo
-        .send()
-        .await?
-        .text()
-        .await?;
-
-
-    let json: Value = serde_json::from_str(&response)?;
 
     let mut price_range: HashMap<NaiveDate, f64> = HashMap::new();
 
-    // grotesque json unpacking; we take only timestamps and closing prices
-    if let Some(timestamps) = json["chart"]["result"][0]["timestamp"].as_array() {
-        if let Some(prices) = json["chart"]["result"][0]["indicators"]["quote"][0]["close"].as_array() {
+    let mut symbol: Box<str> = Box::from(symbol);
+    
+    // loop until user provides valid ticker or types ignore
+    loop {
+        let url = format!(
+            "https://query1.finance.yahoo.com/v8/finance/chart/{}?period1={}&period2={}&interval=1d",
+            symbol, start_timestamp, end_timestamp
+        );
 
-            for (count, timestamp) in timestamps.iter().enumerate() {
+        let client = Client::new();
+        let response = client.get(&url)
+            .header(USER_AGENT, "Mozilla/5.0") // Prevents blocking by Yahoo
+            .send()
+            .await?
+            .text()
+            .await?;
 
-                // looks complicated but its just pairwaise matching of price and date arrays
-                // returned by yahoo, using tuples
-                // vvv
+        let json: Value = serde_json::from_str(&response)?;
 
-                if let (Some(timestamp), Some(price)) = (timestamp.as_i64(), prices.get(count).and_then(|p| p.as_f64())) {
-                    let date = unix_to_date(timestamp);
-                    price_range.insert(date, price);
+            // grotesque json unpacking; we take only timestamps and closing prices
+            if let Some(timestamps) = json["chart"]["result"][0]["timestamp"].as_array() {
+                if let Some(prices) = json["chart"]["result"][0]["indicators"]["quote"][0]["close"].as_array() {
+        
+                    for (count, timestamp) in timestamps.iter().enumerate() {
+        
+                        // looks complicated but its just pairwaise matching of price and date arrays
+                        // returned by yahoo, using tuples
+                        // vvv
+        
+                        if let (Some(timestamp), Some(price)) = (timestamp.as_i64(), prices.get(count).and_then(|p| p.as_f64())) {
+                            let date = unix_to_date(timestamp);
+                            price_range.insert(date, price);
+                        }
+                    };
+                };
+                break
+            } else {
+                if ["", "ignore", "IGNORE"].contains(&symbol.as_ref()) {
+                    // println!("Could not fetch price data for ticker: _{}_", symbol);
+                    break
+                } else {
+                    
+                    let correct_ticker: Box<str> = match custom_tickers.get(symbol.as_ref()) {     // must be a box pointer for persistence
+                        Some(v) => v.clone().into_boxed_str(),
+                        None => {
+                                println!("   __________________________________________");
+                                let message = format!("Ticker {} from Trading 212 could not be found. What is the correct ticker for {} on Yahoo Finance? Please provide a name or type IGNORE to skip it once", &symbol, &symbol);
+                                for line in wrap(&message, 40){
+                                    println!("   {}", line)
+                                }
+                                println!("   ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");
+
+                                let mut input = String::new();
+                                io::stdin().read_line(&mut input).unwrap();
+                                clear_last_n_lines(1);
+                                let command = input.trim().to_string();
+                                if command.to_ascii_lowercase() != "ignore" {
+                                    custom_tickers.insert(symbol.to_string(), command.to_string());
+                                } else {
+                                    // pass
+                                }
+                                command.into_boxed_str()
+                                }
+                        };
+                    symbol = correct_ticker;
+                    };
+                    
                 }
-            };
-            // println!("{:?}", price_range)
-        }
-    } else {
-        println!("Could not fetch price data for ticker: _{}_", symbol);
-    }
+            }
+    
 
     Ok(price_range)
 }
@@ -142,5 +179,3 @@ pub fn convert_to_yahoo_ticker(
 
     returnable_ticker
 }
-
-
