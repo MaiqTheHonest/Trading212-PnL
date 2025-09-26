@@ -40,7 +40,8 @@ fn main() {
     let mut data = match t212::get_orders(&api_key) {
         Ok(v) => {
             if v.is_empty(){
-                println!("Error: invalid API key or new account with 0 orders");
+                
+                eprintln!("Error: invalid API key or new account with 0 orders");
                 process::exit(1)
             } else {
                 println!("\nOrder import from Trading212: complete");
@@ -399,7 +400,10 @@ fn main() {
                 break},
 
             "" => println!("  Enter valid command or /q to quit."),
-            _ => println!("  Unknown command: {}", command),
+            _ => {
+                clear_last_n_lines(1);
+                println!("  Unknown command: {}", command)
+                }
         }
         printallcommands()
     }

@@ -1,11 +1,12 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 use std::collections::HashMap;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::{header::{HeaderMap, HeaderValue, AUTHORIZATION}, Response};
 use std::error::Error;
 use chrono::DateTime;
 use serde::{Deserialize, Deserializer};
 use std::{thread, time::Duration};
+use serde_json::Value;
 
 
 
@@ -21,10 +22,10 @@ pub async fn get_orders(api_key: &str) -> Result<Vec<Order>, Box<dyn Error>> {
         let api_response = recursive_call_api(&api_key, "https://live.trading212.com/api/v0/equity/history/orders", &cursor, ResponseType::Orders).await;
         // println!("{:?}", api_response);
 
-
         (cursor, orders) = match api_response {                    // process_items returns a tuple so we catch both cursor
             Ok(CallResponse::Orders(items)) => process_items(items),            // and orders in this match
             _ => {
+
                 // eprintln!("{}", e);               // doesn't assign tuple but breaks loop so compiler doesn't care
                 break
             }
@@ -58,13 +59,13 @@ pub struct Order {                                            // both the struct
     pub ticker: String,
     pub dateModified: String,
 
-    #[serde(deserialize_with = "deserialize_null_fields")]    // custom deserialize routine to fill occasional nulls.
+    #[serde(default, deserialize_with = "deserialize_null_fields")]    // custom deserialize routine to fill occasional nulls.
     pub filledQuantity: f64,                                  // happens because .json has implementation for null,
                                                               
-    #[serde(deserialize_with = "deserialize_null_fields")]    // but rust doesn't (and doesn't even treat it as a missing field)    <-\\
+    #[serde(default, deserialize_with = "deserialize_null_fields")]    // but rust doesn't (and doesn't even treat it as a missing field)    <-\\
     pub fillPrice: f64,
 
-    #[serde(deserialize_with = "deserialize_null_fields")]    
+    #[serde(default, deserialize_with = "deserialize_null_fields")]    
     pub filledValue: f64,
 
     pub status: String
@@ -108,7 +109,6 @@ fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> whe
 pub async fn recursive_call_api(api_key: &str, api_url: &str, current_cursor: &String, response_type: ResponseType) -> Result<CallResponse, Box<dyn Error>>{
  
 
-
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&api_key)?);
 
@@ -125,7 +125,11 @@ pub async fn recursive_call_api(api_key: &str, api_url: &str, current_cursor: &S
         .send()
         .await?;
 
-    if response.status().is_success() {
+    let status = response.status();
+    // let bytes = response.bytes().await?;
+    // println!("Raw response: {}", String::from_utf8_lossy(&bytes));
+
+    if status.is_success() {
         match response_type {
             ResponseType::Orders => {let catcher: Items = response.json().await?;
             return Ok(CallResponse::Orders(catcher))},
@@ -135,12 +139,12 @@ pub async fn recursive_call_api(api_key: &str, api_url: &str, current_cursor: &S
         }
 
     } else {
-        if response.status().as_str().contains("429"){  // 429 means too many requests
+        if status.as_str().contains("429"){  // 429 means too many requests
             countdown(60);
             let d2_response = Box::pin(recursive_call_api(&api_key, api_url, current_cursor, response_type)).await;  // Box::pin because Rust doesn't allow recursive async funcs that are not boxed
             return d2_response
         } else {
-            Err(format!("API call failed: {}", response.status()).into())
+            Err(format!("API call failed: {}", status).into())
         }
     }
 }
