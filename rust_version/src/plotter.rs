@@ -1,8 +1,9 @@
 use rgb::RGB8;
 use textplots::{Chart, ColorPlot, LabelBuilder, LabelFormat, Shape, TickDisplay, TickDisplayBuilder};
 use chrono::{Duration, NaiveDate};
-use std::io::{self, Write};
-
+use std::{collections::HashMap, io::{self, Write}};
+use piechart::{Chart as PieChart, Color, Data, Style};
+use crate::stats::hashmap_to_sorted_vec;
 
 pub fn display_to_console(
     data_to_plot_1: &Vec<(NaiveDate, f32)>,
@@ -52,7 +53,7 @@ pub fn display_to_console(
             else { "".to_string() }
         })))
 
-        .y_label_format(LabelFormat::Custom(Box::new(move |value| {format!("{:.1}{}", value, units)})))
+        .y_label_format(LabelFormat::Custom(Box::new(move |value| {format!("{:.1} {}", value, units)})))
         .y_tick_display(TickDisplay::Dense)
         .nice();
 
@@ -64,7 +65,7 @@ pub fn display_to_console(
 pub fn printallcommands() {
     println!("\n  /s      view portfolio statistics            /m      view MWRR (Trading 212 returns)");
     println!("  /r      view realized returns                /d      view dividend statistics");
-    println!("  /q      quit\n");
+    println!("  /f      view fees and taxes                  /q      quit\n");
 }
 
 
@@ -80,3 +81,22 @@ pub fn clear_last_n_lines(n: u8) {
     stdout.flush().unwrap();
 }
 
+
+pub fn draw_pie(hm: HashMap<String, f32>){
+    let mut data = vec![];
+    let mut palette = [Color::RGB(190, 190, 0), Color::RGB(220, 5, 5), Color::Green, Color::Black].iter().cycle();
+    let mut ordered_hm: Vec<(String, f32)> = hm.into_iter().collect();
+    ordered_hm.sort_by(|a, b| a.1.total_cmp(&b.1));
+
+    for (key, val) in ordered_hm.iter(){
+        let twodpval = (val * 100.0).round() / 100.0 * -1.0;
+        data.push(Data { label: key.into(), value: twodpval, color: Some(Style::from(*palette.next().unwrap())), fill: '•' });
+        
+    } 
+
+    PieChart::new()
+    .radius(5)
+    .aspect_ratio(4)
+    .legend(true)
+    .draw(&data);
+}

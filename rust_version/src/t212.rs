@@ -68,6 +68,9 @@ pub struct Order {                                            // both the struct
     #[serde(default, deserialize_with = "deserialize_null_fields")]    
     pub filledValue: f64,
 
+    #[serde(default)]    
+    pub taxes: Vec<Fee>,
+
     pub status: String
 
 }
@@ -97,6 +100,12 @@ pub enum CallResponse {
 pub enum ResponseType {
     Orders,
     Divis
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Fee {
+    pub name: String,
+    pub quantity: f32
 }
 
 fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> where D: Deserializer<'de> {    // the routine itself  <-||

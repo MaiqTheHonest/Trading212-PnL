@@ -14,6 +14,7 @@ use std::fs::{OpenOptions, read_to_string};
 use plotter::*;
 use serde_json::{from_reader, to_writer};
 
+
 fn main() {
 
     // READING JSON WITH CUSTOM TICKERS #########################
@@ -62,7 +63,6 @@ fn main() {
     // so we just remove them. this introduces price incorrection but partial fills are rare at T212
     remove_duplicates(&mut data);    
     
-    
     // initialize the whole time period
     let time_range = get_time_range(&data).expect("Failed to get time range: ");
     
@@ -75,6 +75,8 @@ fn main() {
 
 
     // GETTING FX RATES #######################################
+    let account_currency = String::from("GBP");
+
     let fx_list: Vec<String> = vec![
         String::from("GBPUSD"), 
         String::from("GBPEUR"), 
@@ -125,6 +127,9 @@ fn main() {
 
     // initialize storage of each ticker's total dividends
     let mut dividend_library: HashMap<String, f64> = HashMap::new();
+
+    // initialize storage of total fees
+    let mut fees_and_taxes: HashMap<String, f32> = HashMap::new();
     // #########################################################
 
 
@@ -164,7 +169,11 @@ fn main() {
         // set portoflio history's element to a correct pair of {Date: portfolio_t}
         let index = time_range.iter().position(|&r| r == matcher_date).expect("time range has no such date");
         portfolio_history[index] = (matcher_date, portfolio_t.clone());
-        
+
+        // adding taxes
+        for fee in &order.taxes {
+            fees_and_taxes.entry(fee.name.clone()).and_modify(|total| *total += fee.quantity).or_insert(fee.quantity);
+        };
     };
     // #########################################################
 
@@ -368,8 +377,8 @@ fn main() {
                 println!("   ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ \n \n");          
             },
             "/r" => {clear_last_n_lines(6);
-                println!("\n  Absolute realized return, GBP");
-                display_to_console(&real_returns_abs, start_date, end_date, 40, 10.0, RGB8::new(255, 51, 255), String::from_str(" GBP").unwrap());
+                println!("\n  Absolute realized return, {}", account_currency);
+                display_to_console(&real_returns_abs, start_date, end_date, 40, 10.0, RGB8::new(255, 51, 255), account_currency.clone());
             },
                 
                 "/m" =>     {clear_last_n_lines(6);
@@ -381,10 +390,10 @@ fn main() {
             },
 
             "/d" => {clear_last_n_lines(6);
-                println!("\n  Total dividends, GBP");
-                display_to_console(&cum_dividends, cum_dividends.first().unwrap().0, end_date, 40, 0.0, RGB8::new(0, 255, 0), String::from(" GBP"));
+                println!("\n  Total dividends, {}", account_currency);
+                display_to_console(&cum_dividends, cum_dividends.first().unwrap().0, end_date, 40, 0.0, RGB8::new(0, 255, 0), account_currency.clone());
                 println!("\n  ______________________________________");
-                println!("  ticker:          total dividends (GBP)");
+                println!("  ticker:          total dividends ({})", account_currency);
                 println!("  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
                 for (ticker, divi) in dividend_library.iter(){
                     println!("  {0: <12}             {1:>.2}", ticker, divi)
@@ -394,7 +403,15 @@ fn main() {
                 println!("  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
                 println!("  dividend yield on cost (annual): {:.2}%", dividend_yield);
                 println!("  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾");
-            }
+            },
+
+            "/f" => {clear_last_n_lines(6);
+                let msg = format!("Total fees and taxes: {:.2} {}", fees_and_taxes.values().sum::<f32>() * -1.0, account_currency);
+                println!("  {}", msg);
+                println!("  {}", "‾".repeat(msg.chars().count()));
+                draw_pie(fees_and_taxes.clone());
+                println!("  {}", "_".repeat(msg.chars().count()));
+            },
 
             "/q" => {println!("  Quitting...");
                 break},
@@ -527,50 +544,3 @@ fn process_order(
 
 
 
-
-
-
-
-
-#[test]
-fn do_stuff(){
-    let file = File::open("test.json").unwrap();
-    let reader = BufReader::new(file);
-    let cash_flows: HashMap<NaiveDate, f64> = serde_json::from_reader(reader).unwrap();
-
-    let file = File::open("test2.json").unwrap();
-    let reader = BufReader::new(file);
-    let cb_mv_history: HashMap<NaiveDate, (f64, f64)> = serde_json::from_reader(reader).unwrap();
-    let mut mwrr_returns = Vec::<(NaiveDate, f32)>::new();
-
-    let cb_mv_history = hashmap_to_btree(cb_mv_history);
-    let cash_flows = hashmap_to_btree(cash_flows);
-
-    let mut default_mwrr: f64 = 0.0;    // value to fallback to if mwrr algorithm doesn't converge.
-
-
-    for (date, (_, mv)) in cb_mv_history.iter() {
-
-        // this range + map allows to clone only what is needed for this iteration, i.e. cash_flows[:date]
-        let mut cash_flows_plus_mv: Vec<(NaiveDate, f64)> = cash_flows.range(..=date) //+ Days::new(2)
-        .map(|(k, v)| (k.clone(), *v))
-        .collect();
-
-        // add today's market value as a cash inflow
-        if let Some((_, value)) = cash_flows_plus_mv.iter_mut().next_back() {
-        *value += mv
-        };
-
-        let irr = mwrr(&cash_flows_plus_mv, 0.5).unwrap_or(default_mwrr) * 100.0;
-        mwrr_returns.push((*date, irr as f32));
-        default_mwrr = irr/100.0;
-    }
-
-    display_to_console(&mwrr_returns, *cb_mv_history.first_key_value().unwrap().0,
-        *cb_mv_history.last_key_value().unwrap().0,
-        70, 10.0, RGB8::new(254, 245, 116), String::from_str("%").unwrap());
-    // // let cash_flows = serde_json::to_vec_pretty(&file);
-    // let file = File::create("test.json").expect("could not create test file");
-    // serde_json::to_writer(&file, &cash_flows);
-    // println!("XIRRRRRRRRRRRRRRRRRRRRRRR with no divis = {:.6}%", mwrr(&cash_flows, 0.5).expect("the xirr failed, not the interpolate") * 100.0);
-    }
