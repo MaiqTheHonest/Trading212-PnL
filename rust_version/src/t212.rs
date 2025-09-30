@@ -189,7 +189,7 @@ pub fn extract_unix(timestamp: &String) -> Option<String> {
 
 fn countdown(mut seconds: i32){
     while seconds > 0 {
-        print!("\rAPI rate limit exceeded, further orders fetched automatically in {}", seconds);
+        print!("\rAPI rate limit exceeded, further orders fetched automatically in {:2}", seconds);
         std::io::Write::flush(&mut std::io::stdout()).unwrap(); // flush last line
         thread::sleep(Duration::from_secs(1));
         seconds -= 1;
