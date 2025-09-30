@@ -276,8 +276,11 @@ fn main() {
         None => &(end_date, (0.0, 0.0))
     };
 
-    real_returns.push((end_date, temp.1));                             // stretch returns to today
+    if temp.0 != end_date {                                            // stretch returns to today
+        real_returns.push((end_date, temp.1))
+    };
     real_returns.insert(0, (start_date, (0.0001, 0.0001)));            // stretch returns to root day
+
     stats::interpolate(&mut real_returns);                             // stretch to correspond to # of days
     let real_returns_abs: Vec<(NaiveDate, f32)> = real_returns.clone().into_iter().map(|(date, (cb, mv))|(date, ((mv - cb) as f32))).collect();
 
