@@ -822,8 +822,6 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 [[package]]
 name = "piechart"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79730372879e285c066c9289e164f4033ff665a866396dfa478f58f5adcd4089"
 dependencies = [
  "ansi_term",
 ]
