@@ -154,27 +154,23 @@ fn main() {
         // and we multiply by 100
 
         let ticker: String = order.order.ticker.clone();
-        let mut price: f64 = order.fill.price;
-        let mut quantity: f64 = order.fill.quantity;
+        let quantity: f64 = order.fill.quantity;
         let value: f64 = order.fill.walletImpact.netValue;
         let status: &String = &order.order.status;
         let taxes = &order.fill.walletImpact.taxes;
 
-        if quantity == 0.0 {
-            if order.order.ticker.contains("l_EQ"){
-                quantity = value / (price * 100.0)
-            } else {
-                quantity = value / price
-            }
+        if order.order.ticker.contains("l_EQ"){
+            order.fill.price = order.fill.price / 100.0
         } else {
-            // pass
-        };
+            //pass
+        }
+
 
         // changing tickers from T212's format to Yahoo's format
         order.order.ticker = yahoo::convert_to_yahoo_ticker(ticker.clone());
 
         // multiplying fill prices by respective fx rate
-        stats::fx_adjust(&ticker, matcher_date, &mut price, &fx_history);
+        stats::fx_adjust(&ticker, matcher_date, &mut order.fill.price, &fx_history);
 
         // filtering out cancelled or rejected orders
         if status == &String::from("FILLED") {
