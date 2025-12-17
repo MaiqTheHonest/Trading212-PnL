@@ -144,7 +144,7 @@ pub fn convert_to_yahoo_ticker(
         let before_eq = &ticker[..pos];                              // take what's before _EQ
         let parts: Vec<&str> = before_eq.split('_').collect();       // separate what's left by _ and turn into collection
 
-
+        
 
         if parts.len() == 1 {
             let mut pre = parts[0];

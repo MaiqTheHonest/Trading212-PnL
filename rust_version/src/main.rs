@@ -63,6 +63,9 @@ fn main() {
     // so we just remove them. this introduces price incorrection but partial fills are rare at T212
     remove_duplicates(&mut data);    
     
+    // drop all cancelled orders
+    remove_cancelled(&mut data);
+
     // initialize the whole time period
     let time_range = get_time_range(&data).expect("Failed to get time range: ");
     
@@ -145,7 +148,7 @@ fn main() {
         // so we need to translate value into quantities. "l_EQ" means a transaction on LSE so it is quoted in pennies
         // and we multiply by 100
 
-        let mut ticker: String = order.order.ticker.clone();
+        let ticker: String = order.order.ticker.clone();
         let mut price: f64 = order.fill.price;
         let mut quantity: f64 = order.fill.quantity;
         let value: f64 = order.fill.walletImpact.netValue;
@@ -163,7 +166,7 @@ fn main() {
         };
 
         // changing tickers from T212's format to Yahoo's format
-        ticker = yahoo::convert_to_yahoo_ticker(ticker.clone());
+        order.order.ticker = yahoo::convert_to_yahoo_ticker(ticker.clone());
 
         // multiplying fill prices by respective fx rate
         stats::fx_adjust(&ticker, matcher_date, &mut price, &fx_history);
@@ -456,6 +459,10 @@ fn main() {
 fn remove_duplicates(orders: &mut Vec<Order>) {
     let mut seen = HashSet::new();
     orders.retain(|order| seen.insert(order.order.id));
+}
+
+fn remove_cancelled(orders: &mut Vec<Order>) {
+    orders.retain(|o| o.order.status != "CANCELLED")
 }
 
 

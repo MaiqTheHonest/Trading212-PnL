@@ -20,7 +20,7 @@ pub async fn get_orders(api_key: &str) -> Result<Vec<Order>, Box<dyn Error>> {
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
         let api_response = recursive_call_api(&api_key, "https://live.trading212.com/api/v0/equity/history/orders", &cursor, ResponseType::Orders).await;
-        println!("{:?}", api_response);
+        // println!("{:?}", api_response);
 
         (cursor, orders) = match api_response {                    // process_items returns a tuple so we catch both cursor
             Ok(CallResponse::Orders(items)) => process_items(items),            // and orders in this match
@@ -54,8 +54,12 @@ pub struct Items {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Order {                                            // both the struct and fields have to be public to be accessed in main
+
     pub order: Ordered,
+    
+    #[serde(default)]
     pub fill: Filled
+
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -81,7 +85,7 @@ pub struct Filled {
 
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct WalletImpact {
     pub currency: String,
 
@@ -132,6 +136,16 @@ fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> whe
     Option::<f64>::deserialize(deserializer).map(|opt| opt.unwrap_or(0.0))
 }
 
+impl Default for Filled {
+    fn default() -> Self {
+        Self {
+            quantity: 0.0,
+            price: 0.0,
+            filledAt: String::from("never"),
+            walletImpact: WalletImpact::default()
+        }
+    }
+}
 
 
 // returns a CallResponse which can be either an Orders or a Dividends variant
