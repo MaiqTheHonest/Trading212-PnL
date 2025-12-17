@@ -139,30 +139,37 @@ fn main() {
     // PARSING, FILTERING AND FORMATTING ORDERS ################
     for order in &mut data {
 
-        let matcher_date = NaiveDate::from_str(&order.dateModified).expect("couldn't parse dateModified: invalid date format");
+        let matcher_date = NaiveDate::from_str(&order.fill.filledAt).expect("couldn't parse [filledAt]: invalid date format");
 
-        // zero filledQuantity means it was a "value" order e.g. "buy £100 of AAPL" instead of "buy 0.5 AAPL at £200"
+        // zero filled quantity means it was a "value" order e.g. "buy £100 of AAPL" instead of "buy 0.5 AAPL at £200"
         // so we need to translate value into quantities. "l_EQ" means a transaction on LSE so it is quoted in pennies
         // and we multiply by 100
 
-        if order.filledQuantity == 0.0 {
-            if order.ticker.contains("l_EQ"){
-            order.filledQuantity = order.filledValue / (order.fillPrice * 100.0)
+        let mut ticker: String = order.order.ticker.clone();
+        let mut price: f64 = order.fill.price;
+        let mut quantity: f64 = order.fill.quantity;
+        let value: f64 = order.fill.walletImpact.netValue;
+        let status: &String = &order.order.status;
+        let taxes = &order.fill.walletImpact.taxes;
+
+        if quantity == 0.0 {
+            if order.order.ticker.contains("l_EQ"){
+                quantity = value / (price * 100.0)
             } else {
-                order.filledQuantity = order.filledValue / order.fillPrice
+                quantity = value / price
             }
         } else {
             // pass
         };
 
         // changing tickers from T212's format to Yahoo's format
-        order.ticker = yahoo::convert_to_yahoo_ticker(order.ticker.clone());
+        ticker = yahoo::convert_to_yahoo_ticker(ticker.clone());
 
         // multiplying fill prices by respective fx rate
-        stats::fx_adjust(&order.ticker, matcher_date, &mut order.fillPrice, &fx_history);
+        stats::fx_adjust(&ticker, matcher_date, &mut price, &fx_history);
 
         // filtering out cancelled or rejected orders
-        if order.status == String::from("FILLED") {
+        if status == &String::from("FILLED") {
             process_order(&order, &mut portfolio_t, &mut ticker_history, &mut real_returns, &mut cash_flows, *time_range.last().unwrap());
         } else {};
 
@@ -171,7 +178,7 @@ fn main() {
         portfolio_history[index] = (matcher_date, portfolio_t.clone());
 
         // adding taxes
-        for fee in &order.taxes {
+        for fee in taxes {
             fees_and_taxes.entry(fee.name.clone()).and_modify(|total| *total += fee.quantity).or_insert(fee.quantity);
         };
     };
@@ -448,14 +455,14 @@ fn main() {
 // HELPER FUNCS THAT STAY IN MAIN #########################
 fn remove_duplicates(orders: &mut Vec<Order>) {
     let mut seen = HashSet::new();
-    orders.retain(|order| seen.insert(order.id));
+    orders.retain(|order| seen.insert(order.order.id));
 }
 
 
 
 fn get_time_range(data: &Vec<Order>) -> Result<Vec<NaiveDate>, Box<dyn Error>> {
     
-    let root_date = data.first().ok_or("couldn't get first order")?.dateModified.as_str();    
+    let root_date = data.first().ok_or("couldn't get first order")?.fill.filledAt.as_str();    
 
     // ^^^ last() returns an option, ok_or converts it to result, "?" propagates the error
 
@@ -484,16 +491,16 @@ fn process_order(
     cash_flows: &mut HashMap<NaiveDate, f64>,
     last_date: NaiveDate) {
 
-    let q_1 = order.filledQuantity;
-    let p_1 = order.fillPrice;
-    let date = NaiveDate::from_str(order.dateModified.as_str()).unwrap();
-    let ticker = order.ticker.clone();
+    let q_1 = order.fill.quantity;
+    let p_1 = order.fill.price;
+    let date = NaiveDate::from_str(order.fill.filledAt.as_str()).unwrap();
+    let ticker = order.order.ticker.clone();
     
     // log the order as a cash flow
     cash_flows.entry(date).and_modify(|days_cash_flow| *days_cash_flow += (-q_1*p_1)).or_insert(-q_1*p_1);
     
     // log the order's presence in portolios and ticker histories
-    match portfolio_t.entry(order.ticker.clone()) {
+    match portfolio_t.entry(order.order.ticker.clone()) {
         Entry::Occupied(mut occupied) => {
             
             let (q_0, p_0) = occupied.get_mut();

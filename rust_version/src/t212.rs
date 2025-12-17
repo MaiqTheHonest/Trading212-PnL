@@ -6,7 +6,7 @@ use std::error::Error;
 use chrono::DateTime;
 use serde::{Deserialize, Deserializer};
 use std::{thread, time::Duration};
-use serde_json::Value;
+// use serde_json::Value;
 
 
 
@@ -20,7 +20,7 @@ pub async fn get_orders(api_key: &str) -> Result<Vec<Order>, Box<dyn Error>> {
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
         let api_response = recursive_call_api(&api_key, "https://live.trading212.com/api/v0/equity/history/orders", &cursor, ResponseType::Orders).await;
-        // println!("{:?}", api_response);
+        println!("{:?}", api_response);
 
         (cursor, orders) = match api_response {                    // process_items returns a tuple so we catch both cursor
             Ok(CallResponse::Orders(items)) => process_items(items),            // and orders in this match
@@ -38,7 +38,7 @@ pub async fn get_orders(api_key: &str) -> Result<Vec<Order>, Box<dyn Error>> {
     
     
     for item in &mut data {
-        item.dateModified = item.dateModified.chars().take(10).collect();    // convert date to daily
+        item.fill.filledAt = item.fill.filledAt.chars().take(10).collect();    // convert date to daily
     }
 
     Ok(data)
@@ -50,31 +50,56 @@ pub async fn get_orders(api_key: &str) -> Result<Vec<Order>, Box<dyn Error>> {
 #[derive(Debug, Deserialize)]
 pub struct Items {
     items: Vec<Order>,
-
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Order {                                            // both the struct and fields have to be public to be accessed in main
+    pub order: Ordered,
+    pub fill: Filled
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Ordered {
     pub id: u64,
     pub ticker: String,
-    pub dateModified: String,
+    pub status: String,
+    pub currency: String
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Filled {
 
     #[serde(default, deserialize_with = "deserialize_null_fields")]    // custom deserialize routine to fill occasional nulls.
-    pub filledQuantity: f64,                                  // happens because .json has implementation for null,
-                                                              
+    pub quantity: f64,                                  // happens because .json has implementation for null,
+
     #[serde(default, deserialize_with = "deserialize_null_fields")]    // but rust doesn't (and doesn't even treat it as a missing field)    <-\\
-    pub fillPrice: f64,
+    pub price: f64,
 
-    #[serde(default, deserialize_with = "deserialize_null_fields")]    
-    pub filledValue: f64,
+    pub filledAt: String,
 
-    #[serde(default)]    
-    pub taxes: Vec<Fee>,
-
-    pub status: String
+    pub walletImpact: WalletImpact
 
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct WalletImpact {
+    pub currency: String,
+
+    #[serde(default, deserialize_with = "deserialize_null_fields")]    
+    pub netValue: f64,
+
+    #[serde(default)]    
+    pub taxes: Vec<Fee>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Fee {
+    pub name: String,
+    pub quantity: f32
+}
+
+
+// dividend deserialisation
 #[derive(Debug, Deserialize)]
 pub struct Dividends {
     pub items: Vec<Dividend>,
@@ -102,11 +127,6 @@ pub enum ResponseType {
     Divis
 }
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct Fee {
-    pub name: String,
-    pub quantity: f32
-}
 
 fn deserialize_null_fields<'de, D>(deserializer: D) -> Result<f64, D::Error> where D: Deserializer<'de> {    // the routine itself  <-||
     Option::<f64>::deserialize(deserializer).map(|opt| opt.unwrap_or(0.0))
@@ -163,7 +183,7 @@ pub async fn recursive_call_api(api_key: &str, api_url: &str, current_cursor: &S
 
 fn process_items(orders: Items) -> (String, Vec<Order>) {
                                                 //vvv if none then none, if some then use in this closure  
-    let timestamp = match orders.items.last().and_then(|order| extract_unix(&order.dateModified)) {
+    let timestamp = match orders.items.last().and_then(|order| extract_unix(&order.fill.filledAt)) {
         Some(v) => v,                       // if it worked, return unix timestamp as cursor 
         None => String::from("complete")    // it it didn't, return "complete" as cursor 
     };
