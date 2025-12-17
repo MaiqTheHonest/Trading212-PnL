@@ -39,6 +39,7 @@ pub async fn get_orders(api_key: &str) -> Result<Vec<Order>, Box<dyn Error>> {
     
     for item in &mut data {
         item.fill.filledAt = item.fill.filledAt.chars().take(10).collect();    // convert date to daily
+        item.order.createdAt = item.order.createdAt.chars().take(10).collect();    // convert date to daily
     }
 
     Ok(data)
@@ -67,7 +68,8 @@ pub struct Ordered {
     pub id: u64,
     pub ticker: String,
     pub status: String,
-    pub currency: String
+    pub currency: String,
+    pub createdAt: String
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -197,13 +199,14 @@ pub async fn recursive_call_api(api_key: &str, api_url: &str, current_cursor: &S
 
 fn process_items(orders: Items) -> (String, Vec<Order>) {
                                                 //vvv if none then none, if some then use in this closure  
-    let timestamp = match orders.items.last().and_then(|order| extract_unix(&order.fill.filledAt)) {
+    let timestamp = match orders.items.last().and_then(|order| extract_unix(&order.order.createdAt)) {
         Some(v) => v,                       // if it worked, return unix timestamp as cursor 
         None => String::from("complete")    // it it didn't, return "complete" as cursor 
     };
     eprintln!("processed page: {:?}", timestamp);
     (timestamp, orders.items)
 }
+
 
 
 

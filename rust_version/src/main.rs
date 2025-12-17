@@ -142,7 +142,12 @@ fn main() {
     // PARSING, FILTERING AND FORMATTING ORDERS ################
     for order in &mut data {
 
-        let matcher_date = NaiveDate::from_str(&order.fill.filledAt).expect("couldn't parse [filledAt]: invalid date format");
+        // println!("{:?}", &order.order.createdAt);
+        let matcher_date = NaiveDate::from_str(&order.fill.filledAt)
+            .or_else(|_| NaiveDate::from_str(&order.order.createdAt))
+            .unwrap_or_else(|_| {
+                panic!("couldn't parse [order.fill.filledAt] or [order.createdAt]: invalid date format");
+            });
 
         // zero filled quantity means it was a "value" order e.g. "buy £100 of AAPL" instead of "buy 0.5 AAPL at £200"
         // so we need to translate value into quantities. "l_EQ" means a transaction on LSE so it is quoted in pennies
