@@ -20,7 +20,7 @@ pub async fn get_orders(api_key: &str) -> Result<Vec<Order>, Box<dyn Error>> {
     while cursor != String::from("complete") {    // repeat until process_items() returns cursor as "complete"
 
         let api_response = recursive_call_api(&api_key, "https://live.trading212.com/api/v0/equity/history/orders", &cursor, ResponseType::Orders).await;
-        println!("{:?}", api_response);
+        // println!("{:?}", api_response);
 
         (cursor, orders) = match api_response {                    // process_items returns a tuple so we catch both cursor
             Ok(CallResponse::Orders(items)) => process_items(items),            // and orders in this match
