@@ -153,24 +153,16 @@ fn main() {
         // so we need to translate value into quantities. "l_EQ" means a transaction on LSE so it is quoted in pennies
         // and we multiply by 100
 
-        let ticker: String = order.order.ticker.clone();
         let quantity: f64 = order.fill.quantity;
         let value: f64 = order.fill.walletImpact.netValue;
         let status: &String = &order.order.status;
         let taxes = &order.fill.walletImpact.taxes;
 
-        if order.order.ticker.contains("l_EQ"){
-            order.fill.price = order.fill.price / 100.0
-        } else {
-            //pass
-        }
-
-
         // changing tickers from T212's format to Yahoo's format
-        order.order.ticker = yahoo::convert_to_yahoo_ticker(ticker.clone());
+        order.order.ticker = yahoo::convert_to_yahoo_ticker(order.order.ticker.clone());
 
         // multiplying fill prices by respective fx rate
-        stats::fx_adjust(&ticker, matcher_date, &mut order.fill.price, &fx_history);
+        stats::fx_adjust(&order.order.ticker, matcher_date, &mut order.fill.price, &fx_history);
 
         // filtering out cancelled or rejected orders
         if status == &String::from("FILLED") {
@@ -362,6 +354,8 @@ fn main() {
     
     let just_returns: Vec<f32> = stats::strip_dates(return_history);
     let current_return = &just_returns.last().unwrap();
+
+
     let annual_return = ((*current_return/100.0 + 1.0).powf(1.0/(&years_held)) - 1.0) * 100.0;
     let daily_returns: Vec<f32> = stats::get_daily_returns(just_returns.clone());
     let (mean, sd, sharpe) = stats::mean_sd_sharpe(&daily_returns);

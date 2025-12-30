@@ -42,7 +42,7 @@ pub fn calc_unreal_returns(
         if tupleobject.1.is_empty() == false{
             portfolio = tupleobject.clone().1;
         }else{
-          // pass, portfolio remains same as 1 day (iteration) before  
+          // pass, portfolio remains same as 1 day (iteration) before
         };
 
 
@@ -210,7 +210,7 @@ pub fn fx_adjust(ticker: &String, matcher_date: NaiveDate, price: &mut f64, fx_h
                 .expect(&format!("couldn't get FX GBPEUR for {}", &matcher_date));
             *price = *price / temp_fx;
         } else if ticker.contains(".L") {
-            *price = *price / 100.0
+            *price = *price / 100.0;
             // do nothing as it is already GBP and not other currency or GBX;
         } else {
             let temp_fx = fx_history
